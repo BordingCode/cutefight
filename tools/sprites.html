@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cute Fight — sprite sheet check</title>
+<style>
+  body { background: #7ec4e8; font-family: monospace; padding: 12px; }
+  canvas { image-rendering: pixelated; background: rgba(255,255,255,0.35); margin: 4px; border-radius: 6px; }
+  h3 { margin: 10px 0 2px; color: #223; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script type="module">
+  import { buildSprites } from '../js/data/sprites.js';
+  const S = buildSprites();
+  const out = document.getElementById('out');
+  const SCALE = 8;
+  function show(title, frames) {
+    const h = document.createElement('h3'); h.textContent = title; out.appendChild(h);
+    for (const f of frames) {
+      const img = f.img || f;
+      const c = document.createElement('canvas');
+      c.width = img.width * SCALE; c.height = img.height * SCALE;
+      const x = c.getContext('2d');
+      x.imageSmoothingEnabled = false;
+      x.drawImage(img, 0, 0, c.width, c.height);
+      out.appendChild(c);
+    }
+  }
+  for (const [mon, anims] of Object.entries(S)) {
+    if (mon === 'tiles') { show('tiles', [S.tiles.grass, S.tiles.soil]); continue; }
+    if (mon === 'orb') { show('orb', [S.orb]); continue; }
+    for (const [anim, frames] of Object.entries(anims)) show(`${mon}.${anim}`, frames);
+  }
+  document.title = 'sprites OK';
+</script>
+</body>
+</html>
