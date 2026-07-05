@@ -76,6 +76,10 @@ function handleEvents() {
       case 'throw': sfx.throw(); break;
       case 'ring_start': break;
       case 'struggle': sfx.struggle(); break;
+      case 'toosoon':
+        sfx.hit();
+        floatText(ev.x - world.camX, ev.y, 'Too soon!', { color: '#ffffff', size: 16 });
+        break;
       case 'caught':
         sfx.caught(); screenFlash(0.5, '255,240,190'); addTrauma(0.12);
         burst(ev.x - world.camX, ev.y, 26, { color: '#ffd23e', speed: 220, grav: 160 });

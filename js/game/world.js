@@ -303,30 +303,42 @@ function stepCatch(w, dt, input) {
   // (within the grace period after full collapse) still catches.
   const DUR = 1.5, GRACE = 0.25;
   c.ringR = Math.max(10, 96 - (96 - 10) * (c.t / DUR));
-  const overtime = Math.max(0, c.t - DUR);
-  const done = overtime > GRACE;
-  if (input.ringTap || done) {
-    const r = c.ringR;
-    if (!done && r <= 48) {
-      // CAUGHT!
-      w.caught++;
-      w.events.push({ t: 'caught', x: f.x, y: f.y - 40 });
-      toast(w, 'Gotcha! Sproutle joined your team!', 3.2);
-      w.foe = null;
-      w.engaged = false;
-      w.catch = null;
-      w.nextFoeT = 3.2;
-    } else if (!done && r <= 66 && c.resets < 1) {
-      c.resets++;
-      c.t = 0; c.ringR = 96;
-      w.events.push({ t: 'struggle', x: f.x, y: f.y - 40 });
-      toast(w, 'It’s struggling… once more!', 1.6);
+  c.lock = Math.max(0, (c.lock || 0) - dt);
+  const done = c.t - DUR > GRACE;
+  const r = c.ringR;
+
+  const caughtIt = () => {
+    w.caught++;
+    w.events.push({ t: 'caught', x: f.x, y: f.y - 40 });
+    toast(w, 'Gotcha! Sproutle joined your team!', 3.2);
+    w.foe = null;
+    w.engaged = false;
+    w.catch = null;
+    w.nextFoeT = 3.2;
+  };
+  const brokeFree = () => {
+    f.dazedT = 0; f.daze = 40; f.state = 'wander';
+    w.catch = null;
+    w.events.push({ t: 'escape', x: f.x, y: f.y - 40 });
+    toast(w, 'It broke free!', 2.0);
+  };
+
+  if (done) {
+    brokeFree();                        // never tapped in time
+  } else if (input.ringTap && c.lock <= 0) {
+    if (r <= 56) {
+      caughtIt();                       // GREEN = CAUGHT. The cue is the promise.
+    } else if (r <= 78) {
+      if (c.resets < 1) {
+        c.resets++;
+        c.t = 0; c.ringR = 96;
+        w.events.push({ t: 'struggle', x: f.x, y: f.y - 40 });
+        toast(w, 'Almost! It’s struggling… once more!', 1.6);
+      } else brokeFree();
     } else {
-      // broke free
-      f.dazedT = 0; f.daze = 40; f.state = 'wander';
-      w.catch = null;
-      w.events.push({ t: 'escape', x: f.x, y: f.y - 40 });
-      toast(w, 'It broke free!', 2.0);
+      // way too early: no punishment, but a short lockout so tap-spam can't fish
+      c.lock = 0.3;
+      w.events.push({ t: 'toosoon', x: f.x, y: f.y - 92 });
     }
   }
 }
