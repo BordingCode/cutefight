@@ -90,6 +90,16 @@ export class Controls {
     jumpBtn.addEventListener('pointerup', jumpEnd);
     jumpBtn.addEventListener('pointercancel', jumpEnd);
 
+    // ---- ability button (Ember Dash, needs a full bond gauge) ----
+    this._ability = false;
+    const abilityBtn = document.getElementById('abilitybtn');
+    if (abilityBtn) {
+      abilityBtn.addEventListener('pointerdown', (e) => {
+        this._ability = true;
+        e.preventDefault();
+      });
+    }
+
     // ---- catch button (context) ----
     catchBtn.addEventListener('pointerdown', (e) => {
       this._catch = true;
@@ -110,6 +120,7 @@ export class Controls {
       if (e.code === 'KeyJ') { this._light = true; this._ringTap = true; }
       if (e.code === 'KeyW' || e.code === 'KeyL') { this._launcher = true; this._ringTap = true; }
       if (e.code === 'KeyE') { this._catch = true; this._ringTap = true; }
+      if (e.code === 'KeyF') this._ability = true;
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
@@ -142,8 +153,10 @@ export class Controls {
       launcher: this._launcher,
       catchPress: this._catch,
       ringTap: this._ringTap,
+      ability: this._ability,
     };
     this._hop = this._light = this._heavyRelease = this._launcher = this._catch = this._ringTap = false;
+    this._ability = false;
     return out;
   }
 }

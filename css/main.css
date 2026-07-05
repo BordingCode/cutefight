@@ -55,6 +55,35 @@ canvas#game {
   bottom: max(20px, env(safe-area-inset-bottom));
   width: 74px; height: 74px;
 }
+#abilitybtn {
+  right: max(148px, calc(env(safe-area-inset-right) + 130px));
+  bottom: 112px;
+  width: 62px; height: 62px;
+  opacity: 0.45;
+  filter: grayscale(0.9);
+  transition: opacity 0.2s, filter 0.2s;
+}
+#abilitybtn.ready {
+  opacity: 1;
+  filter: none;
+  animation: pulse 0.9s infinite alternate;
+}
+#lvltag { color: var(--gold); }
+#xpbar {
+  display: inline-block;
+  width: 52px; height: 8px;
+  background: rgba(255, 243, 223, 0.25);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#xpfill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+  border-radius: 4px;
+  transition: width 0.3s;
+}
 #catchbtn {
   right: max(34px, env(safe-area-inset-right));
   bottom: 136px;
@@ -149,6 +178,7 @@ canvas#game {
 /* visible floating joystick */
 #joybase {
   position: fixed;
+  left: 0; top: 0;
   width: 108px; height: 108px;
   border-radius: 50%;
   border: 3px solid rgba(51, 39, 46, 0.5);
@@ -157,6 +187,7 @@ canvas#game {
   pointer-events: none;
   display: none;
   transform: translate(-50%, -50%);
+  will-change: transform;
 }
 #joybase.show { display: block; }
 #joyknob {

@@ -93,6 +93,10 @@ export const sfx = {
   hurt() { duck(0.5, 0.3); tone(200, 0.2, { type: 'sawtooth', gain: 0.18, slideTo: 80 }); },
   wipe() { duck(0.8, 1.2); [330, 294, 262, 196].forEach((f, i) => tone(f, 0.5, { type: 'triangle', gain: 0.15, delay: i * 0.15, slideTo: f * 0.7 })); },
   engage() { tone(392, 0.14, { type: 'square', gain: 0.09 }); tone(523, 0.18, { type: 'square', gain: 0.09, delay: 0.12 }); },
+  dash() { duck(0.35, 0.25); noise(0.2, { gain: 0.18, type: 'bandpass', freq: 2100, q: 1.8 }); tone(420, 0.2, { type: 'sawtooth', gain: 0.1, slideTo: 1100 }); },
+  gaugeReady() { tone(784, 0.16, { type: 'triangle', gain: 0.14, slideTo: 1046 }); tone(1046, 0.2, { type: 'sine', gain: 0.1, delay: 0.1 }); },
+  pickup() { tone(660, 0.1, { type: 'sine', gain: 0.16, slideTo: 990 }); tone(990, 0.12, { type: 'sine', gain: 0.1, delay: 0.06, slideTo: 1320 }); },
+  levelup() { duck(0.6, 0.9); [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.15, delay: i * 0.08 })); },
 };
 
 // ---- meadow music: gentle chiptune loop (pentatonic major, two voices + soft pulse bass)

@@ -22,6 +22,22 @@ export function typeMult(atk, def) {
   return 1.0;
 }
 
+// wild species — each row is a different fight, not a reskin
+export const SPECIES = {
+  sproutle: {
+    name: 'Sproutle', element: 'leaf',
+    tell: 0.6, lungeV: 430, lungeT: 0.38, recover: 0.9, walk: 88,
+    ringDur: 1.5, xpKo: 8, xpCatch: 20, skittish: false,
+  },
+  voltling: {
+    name: 'Voltling', element: 'spark',
+    tell: 0.42, lungeV: 560, lungeT: 0.3, recover: 0.6, walk: 130,
+    ringDur: 1.25, xpKo: 12, xpCatch: 28, skittish: true, // hops away after lunging
+  },
+};
+
+export const xpNext = (level) => 30 + 25 * (level - 1);
+
 export function createWorld() {
   return {
     t: 0,
@@ -30,6 +46,9 @@ export function createWorld() {
     zoneL: 0, zoneR: 0,        // combat zone wall x positions
     orbs: 5,
     caught: 0,
+    xp: 0, level: 1,
+    pickups: [],               // orbs dropped on the path
+    spawnCount: 0,
     events: [],                // {t:'hit'|'strong'|'launch'|'bounce'|'tell'|'player_hurt'|...}
     msg: null, msgT: 0,        // transient toast message
 
@@ -40,24 +59,48 @@ export function createWorld() {
       state: 'idle',           // idle|walk|air|atk|hurt
       atkT: 0, atkKind: null, combo: 0, comboT: 0,
       chargeT: 0, charging: false,
+      gauge: 0,                // bond gauge: fill by landing hits, spend on Ember Dash
+      dashT: 0, dashHit: false,
       iframes: 0, animT: 0,
     },
 
     foe: null,
     nextFoeT: 1.2,             // spawn the first wild shortly after start
-    catch: null,               // {phase:'throw'|'ring', t, ringR, resets}
+    catch: null,               // {phase:'throw'|'ring', t, ringR, resets, lock}
   };
 }
 
 function spawnFoe(w) {
+  w.spawnCount++;
+  // first two encounters teach on the gentle one; then the meadow mixes it up
+  const species = w.spawnCount <= 2 ? 'sproutle' : (Math.random() < 0.5 ? 'sproutle' : 'voltling');
+  const spec = SPECIES[species];
   w.foe = {
-    species: 'sproutle', element: 'leaf',
+    species, element: spec.element,
     x: w.player.x + 620, y: GROUND_Y, vx: 0, vy: 0, onGround: true, facing: -1,
     daze: 0, dazedT: 0,        // dazedT>0 means in the dazed (catchable) window
     state: 'wander',           // wander|tell|lunge|recover|hurt|air|down|dazed
     timer: 0, animT: 0, hitFlash: 0,
     downT: 0,
   };
+}
+
+function addXp(w, amt, x, y) {
+  w.xp += amt;
+  w.events.push({ t: 'xp', amt, x, y });
+  while (w.xp >= xpNext(w.level)) {
+    w.xp -= xpNext(w.level);
+    w.level++;
+    if (w.level % 2 === 0) w.player.maxHp = Math.min(8, w.player.maxHp + 1);
+    w.player.hp = w.player.maxHp;
+    w.events.push({ t: 'levelup', level: w.level });
+    toast(w, `Level up! Cinder is now Lv ${w.level}!`, 2.8);
+  }
+}
+
+function dropPickup(w, x) {
+  // keep the player supplied: guaranteed orb when empty, else a coin flip
+  if (w.orbs === 0 || Math.random() < 0.5) w.pickups.push({ x, y: GROUND_Y });
 }
 
 function toast(w, text, dur = 2.2) { w.msg = text; w.msgT = dur; }
@@ -67,7 +110,12 @@ function hitFoe(w, kind) {
   const p = w.player, f = w.foe;
   const mult = typeMult(p.element, f.element);
   const strong = mult > 1.01;
-  const base = { light: 7, combo: 10, heavy: 16, launcher: 9, air: 8 }[kind];
+  const base = { light: 7, combo: 10, heavy: 16, launcher: 9, air: 8, dash: 12 }[kind];
+  // landing hits builds the bond gauge that pays for Ember Dash
+  if (kind !== 'dash' && p.gauge < 100) {
+    p.gauge = clamp(p.gauge + 12, 0, 100);
+    if (p.gauge >= 100) w.events.push({ t: 'gauge_ready' });
+  }
   const dazedNow = f.dazedT > 0;
   // dazed foes take much less daze from stray hits — only big verbs risk the overkill
   const dazeGain = base * mult * (dazedNow ? 0.35 : 1);
@@ -75,7 +123,10 @@ function hitFoe(w, kind) {
   f.hitFlash = 0.09;
 
   const dir = sign(f.x - p.x) || p.facing;
-  if (kind === 'launcher') {
+  if (kind === 'dash') {
+    f.vy = -260; f.vx = dir * 190; f.state = 'air'; f.onGround = false;
+    w.events.push({ t: 'hit', x: f.x, y: f.y - 30, strong, big: true });
+  } else if (kind === 'launcher') {
     f.vy = -660; f.vx = dir * 120; f.state = 'air'; f.onGround = false;
     w.events.push({ t: 'launch', x: f.x, y: f.y - 24 });
   } else if (kind === 'air') {
@@ -100,10 +151,13 @@ function hitFoe(w, kind) {
     w.events.push({ t: 'dazed', x: f.x, y: f.y - 60 });
     toast(w, 'It’s dazed! Throw the orb!', 2.6);
   }
-  // overkill — fainted, catch lost
+  // overkill — fainted, catch lost (still worth a little XP)
   if (f.daze >= DAZE_KO) {
+    const spec = SPECIES[f.species];
     w.events.push({ t: 'ko', x: f.x, y: f.y - 30 });
     toast(w, 'Too rough… it fainted. Gentler next time!', 3.0);
+    addXp(w, spec.xpKo, f.x, f.y - 70);
+    dropPickup(w, f.x);
     w.foe = null;
     w.engaged = false;
     w.nextFoeT = 2.8;
@@ -132,6 +186,31 @@ function stepPlayer(w, dt, input) {
   p.comboT = Math.max(0, p.comboT - dt);
   if (p.comboT <= 0) p.combo = 0;
 
+  // Ember Dash in progress: fast forward burst with i-frames, hits on the way through
+  if (p.dashT > 0) {
+    p.dashT -= dt;
+    p.iframes = Math.max(p.iframes, 0.06);
+    p.x += p.facing * 1250 * dt;
+    const dl = w.engaged ? w.zoneL + 26 : 26;
+    const dr = w.engaged ? w.zoneR - 26 : Infinity;
+    p.x = clamp(p.x, dl, dr);
+    if (!p.dashHit && w.foe && Math.abs(w.foe.x - p.x) < 72 && Math.abs(w.foe.y - p.y) < 96) {
+      p.dashHit = true;
+      hitFoe(w, 'dash');
+    }
+    if (p.dashT <= 0) p.state = p.onGround ? 'idle' : 'air';
+    return;
+  }
+
+  // collect orb pickups by walking over them
+  for (let i = w.pickups.length - 1; i >= 0; i--) {
+    if (Math.abs(w.pickups[i].x - p.x) < 46 && p.onGround) {
+      w.orbs++;
+      w.events.push({ t: 'pickup', x: w.pickups[i].x, y: GROUND_Y - 30 });
+      w.pickups.splice(i, 1);
+    }
+  }
+
   // movement (locked briefly during ground attacks)
   const lockMove = p.state === 'atk' && p.onGround;
   const mx = lockMove ? 0 : input.moveX;
@@ -148,6 +227,17 @@ function stepPlayer(w, dt, input) {
   const releaseCharge = p.chargeT;
   if (input.charging && p.state !== 'atk') { p.chargeT += dt; p.vx *= 0.4; }
   else if (!input.charging) p.chargeT = 0;
+
+  // EMBER DASH — the signature verb, earned by fighting well. It may interrupt
+  // any attack (a special that ignores your button press feels broken).
+  if (input.ability && p.gauge >= 100) {
+    p.gauge = 0;
+    p.dashT = 0.2;
+    p.dashHit = false;
+    p.state = 'atk'; p.atkKind = 'dash'; p.atkT = 0.2;
+    w.events.push({ t: 'dash', x: p.x, y: p.y });
+    return;
+  }
 
   // attacks
   if (p.state === 'atk') {
@@ -246,21 +336,22 @@ function stepFoe(w, dt) {
     return;
   }
 
-  // ---- AI: approach, telegraph, lunge ----
+  // ---- AI: approach, telegraph, lunge (numbers come from the species row) ----
+  const spec = SPECIES[f.species];
   const dx = p.x - f.x;
   f.facing = sign(dx) || f.facing;
   if (f.state === 'wander') {
     f.timer -= dt;
-    if (Math.abs(dx) > 120) f.x += sign(dx) * 88 * dt;
+    if (Math.abs(dx) > 120) f.x += sign(dx) * spec.walk * dt;
     else if (f.timer <= 0) {
-      f.state = 'tell'; f.timer = 0.6;
+      f.state = 'tell'; f.timer = spec.tell;
       w.events.push({ t: 'tell', x: f.x, y: f.y - 62 });
     }
   } else if (f.state === 'tell') {
     f.timer -= dt;
     if (f.timer <= 0) {
-      f.state = 'lunge'; f.timer = 0.38;
-      f.vx = sign(dx) * 430;
+      f.state = 'lunge'; f.timer = spec.lungeT;
+      f.vx = sign(dx) * spec.lungeV;
       w.events.push({ t: 'lunge', x: f.x, y: f.y });
     }
   } else if (f.state === 'lunge') {
@@ -282,7 +373,15 @@ function stepFoe(w, dt) {
         p.x = Math.max(60, w.zoneL + 40);
       }
     }
-    if (f.timer <= 0) { f.state = 'recover'; f.timer = 0.9; f.vx = 0; }
+    if (f.timer <= 0) {
+      f.vx = 0;
+      if (spec.skittish) {
+        // hops back out of reach after striking — chase it or bait it
+        f.vy = -340; f.vx = -sign(dx) * 240; f.onGround = false; f.state = 'air';
+      } else {
+        f.state = 'recover'; f.timer = spec.recover;
+      }
+    }
   } else if (f.state === 'recover') {
     f.timer -= dt;
     if (f.timer <= 0) { f.state = 'wander'; f.timer = 0.7 + Math.random() * 0.9; }
@@ -301,16 +400,19 @@ function stepCatch(w, dt, input) {
   // ring shrinks 96 -> 10 over 1.5s, then lingers a beat. The catch window absorbs
   // human reaction time: the green cue LEADS the window, and a slightly-late tap
   // (within the grace period after full collapse) still catches.
-  const DUR = 1.5, GRACE = 0.25;
+  const DUR = SPECIES[f.species].ringDur, GRACE = 0.25;
   c.ringR = Math.max(10, 96 - (96 - 10) * (c.t / DUR));
   c.lock = Math.max(0, (c.lock || 0) - dt);
   const done = c.t - DUR > GRACE;
   const r = c.ringR;
 
   const caughtIt = () => {
+    const spec = SPECIES[f.species];
     w.caught++;
     w.events.push({ t: 'caught', x: f.x, y: f.y - 40 });
-    toast(w, 'Gotcha! Sproutle joined your team!', 3.2);
+    toast(w, `Gotcha! ${spec.name} joined your team!`, 3.2);
+    addXp(w, spec.xpCatch, f.x, f.y - 80);
+    dropPickup(w, f.x + 60);
     w.foe = null;
     w.engaged = false;
     w.catch = null;

@@ -2,7 +2,9 @@
 // canvases blitted at SCALE with smoothing off. Feet anchor: sprite bottom row sits on
 // the entity's y (the ground line when grounded).
 import { WORLD_W, WORLD_H } from '../engine/canvas.js';
-import { GROUND_Y, DAZE_CATCH } from './world.js';
+import { GROUND_Y, DAZE_CATCH, typeMult } from './world.js';
+
+const ELEM_COLOR = { ember: '#ff8a3d', leaf: '#8fd06a', tide: '#4fa3d8', spark: '#f5d34a', frost: '#a9c8ef', gust: '#b9d4c2' };
 import { FX, drawFX } from '../engine/fx.js';
 import { TAU } from '../engine/vec.js';
 
@@ -19,36 +21,85 @@ function drawSprite(ctx, frame, x, y, facing, squashY = 1) {
   ctx.drawImage(img, Math.round(x - SPR / 2), Math.round(y - h + 2), SPR, h);
 }
 
-// soft parallax hills as a filled wave
-function hills(ctx, camX, par, baseY, amp, color, step = 90) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  const off = camX * par;
-  ctx.moveTo(-20, WORLD_H + 20);
-  for (let sx = -20; sx <= WORLD_W + 20; sx += 8) {
-    const wx = sx + off;
-    const yy = baseY + Math.sin(wx / step) * amp + Math.sin(wx / (step * 2.7) + 1.7) * amp * 0.6;
-    ctx.lineTo(sx, yy);
+// ---------------------------------------------------------------------------
+// Pre-rendered scenery. Hills/bushes/ground are baked ONCE into seamless
+// repeating strips; per frame we just blit 2-3 copies of each. This replaces
+// hundreds of path segments + gradient builds per frame — the phone lag fix.
+// ---------------------------------------------------------------------------
+const STRIP_W = 1920;
+let BG = null;
+
+function hillStrip(baseY, waves, color) {
+  const c = document.createElement('canvas');
+  c.width = STRIP_W; c.height = WORLD_H;
+  const x2 = c.getContext('2d');
+  x2.fillStyle = color;
+  x2.beginPath();
+  x2.moveTo(0, WORLD_H);
+  for (let x = 0; x <= STRIP_W; x += 6) {
+    // integer wave counts over the strip width -> perfectly seamless tiling
+    let y = baseY;
+    for (const [n, amp, ph] of waves) y += Math.sin((x / STRIP_W) * TAU * n + ph) * amp;
+    x2.lineTo(x, y);
   }
-  ctx.lineTo(WORLD_W + 20, WORLD_H + 20);
-  ctx.closePath();
-  ctx.fill();
+  x2.lineTo(STRIP_W, WORLD_H);
+  x2.closePath();
+  x2.fill();
+  return c;
+}
+
+function buildBG(S) {
+  const far = hillStrip(330, [[2, 26, 0], [5, 15, 1.7]], '#b6d9a4');
+  const mid = hillStrip(400, [[3, 20, 0.9], [7, 9, 2.4]], '#8cc47e');
+  // bushes baked onto the mid strip's foot
+  const mx = mid.getContext('2d');
+  for (let i = 0; i < 8; i++) {
+    const bx = (i * 253 + 60) % STRIP_W;
+    mx.fillStyle = i % 3 ? '#79b768' : '#6aa95c';
+    mx.beginPath();
+    mx.ellipse(bx, 442, 42, 26 + (i % 3) * 6, 0, Math.PI, 0);
+    mx.fill();
+  }
+  // ground strip: one row of grass tiles + soil below, baked at final scale
+  const T = 16 * SCALE;
+  const gh = WORLD_H + 220 - (GROUND_Y - 10);
+  const ground = document.createElement('canvas');
+  ground.width = STRIP_W; ground.height = gh;
+  const gx = ground.getContext('2d');
+  gx.imageSmoothingEnabled = false;
+  for (let x = 0; x < STRIP_W; x += T) {
+    gx.drawImage(S.tiles.grass, x, 0, T, T);
+    for (let y = T; y < gh; y += T) gx.drawImage(S.tiles.soil, x, y, T, T);
+  }
+  BG = { far, mid, ground, sky: null, skyKey: '' };
+}
+
+// blit a repeating strip with parallax; covers the letterbox too
+function blitStrip(ctx, view, strip, par, camX, y) {
+  const off = camX * par;
+  let x = Math.floor((view.bgX0 + off) / STRIP_W) * STRIP_W - off;
+  for (; x < view.bgX1; x += STRIP_W) ctx.drawImage(strip, x, y);
 }
 
 export function draw(view, w, S) {
   const ctx = view.ctx;
+  if (!BG) buildBG(S);
   view.begin();
   ctx.imageSmoothingEnabled = false;
 
   ctx.save();
   ctx.translate(FX.shakeX, FX.shakeY);
 
-  // --- sky (painted past the world rect into letterbox bars) ---
-  const g = ctx.createLinearGradient(0, view.bgY0, 0, WORLD_H);
-  g.addColorStop(0, '#6db9e8');
-  g.addColorStop(0.55, '#a6dcf2');
-  g.addColorStop(1, '#d9f2fa');
-  ctx.fillStyle = g;
+  // --- sky (gradient cached; only rebuilt when the viewport changes) ---
+  const skyKey = view.bgY0 + ':' + view.bgY1;
+  if (BG.skyKey !== skyKey) {
+    const g = ctx.createLinearGradient(0, view.bgY0, 0, WORLD_H);
+    g.addColorStop(0, '#6db9e8');
+    g.addColorStop(0.55, '#a6dcf2');
+    g.addColorStop(1, '#d9f2fa');
+    BG.sky = g; BG.skyKey = skyKey;
+  }
+  ctx.fillStyle = BG.sky;
   ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, view.bgY1 - view.bgY0);
 
   // sun
@@ -66,28 +117,19 @@ export function draw(view, w, S) {
     ctx.fill();
   }
 
-  // far + mid hills
-  hills(ctx, -w.camX, 0.18, 330, 26, '#b6d9a4', 160);
-  hills(ctx, -w.camX, 0.45, 400, 20, '#8cc47e', 110);
+  // --- pre-baked parallax strips ---
+  blitStrip(ctx, view, BG.far, 0.18, w.camX, 0);
+  blitStrip(ctx, view, BG.mid, 0.45, w.camX, 0);
+  blitStrip(ctx, view, BG.ground, 1, w.camX, GROUND_Y - 10);
 
-  // mid bushes
-  for (let i = 0; i < 30; i++) {
-    const bx = i * 260 - w.camX * 0.7;
-    const sx = ((bx % (WORLD_W + 300)) + WORLD_W + 300) % (WORLD_W + 300) - 150;
-    ctx.fillStyle = i % 3 ? '#79b768' : '#6aa95c';
-    ctx.beginPath();
-    ctx.ellipse(sx, 442, 42, 26 + (i % 3) * 6, 0, Math.PI, 0);
-    ctx.fill();
-  }
-
-  // --- ground tiles (full parallax) ---
-  const T = 16 * SCALE;
-  const gy = GROUND_Y - 10;
-  const startX = Math.floor(w.camX / T) * T;
-  for (let tx = startX; tx < w.camX + WORLD_W + T; tx += T) {
-    const sx = tx - w.camX;
-    ctx.drawImage(S.tiles.grass, sx, gy, T, T);
-    for (let ty = gy + T; ty < WORLD_H; ty += T) ctx.drawImage(S.tiles.soil, sx, ty, T, T);
+  // --- orb pickups on the path ---
+  if (w.pickups) {
+    for (const pk of w.pickups) {
+      const px = pk.x - w.camX;
+      if (px < -30 || px > WORLD_W + 30) continue;
+      const bob = Math.sin(w.t * 4 + pk.x) * 4;
+      ctx.drawImage(S.orb, px - 12, pk.y - 34 + bob, 24, 24);
+    }
   }
 
   // --- foe ---
@@ -99,7 +141,7 @@ export function draw(view, w, S) {
     ctx.beginPath(); ctx.ellipse(fx, GROUND_Y + 4, 26, 7, 0, 0, TAU); ctx.fill();
 
     let frame;
-    const a = S.sproutle;
+    const a = S[f.species];
     if (f.state === 'tell') frame = a.tell[0];
     else if (f.state === 'lunge' || (!f.onGround)) frame = a.lunge[0];
     else if (f.state === 'wander') frame = pickFrame(a.walk, f.animT, 0.2);
@@ -141,14 +183,15 @@ export function draw(view, w, S) {
     // KO tick
     ctx.fillStyle = '#e8434f';
     ctx.fillRect(bx + bw - 2, by - 2, 2, bh + 4);
-    // element badge + matchup chevron (leaf, weak vs ember -> red down-arrow)
+    // element badge + live matchup chevron: ▼ = weak against you, ▲ = strong vs you
     ctx.font = '700 12px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#8fd06a';
+    ctx.fillStyle = ELEM_COLOR[f.element] || '#ccc';
     ctx.fillRect(bx - 16, by - 3, 12, 12);
     ctx.strokeStyle = '#33272e'; ctx.lineWidth = 2; ctx.strokeRect(bx - 16, by - 3, 12, 12);
-    ctx.fillStyle = '#e8434f';
-    ctx.fillText('▼', bx + bw + 5, by + 9);
+    const mult = typeMult(w.player.element, f.element);
+    if (mult > 1.01) { ctx.fillStyle = '#e8434f'; ctx.fillText('▼', bx + bw + 5, by + 9); }
+    else if (mult < 0.99) { ctx.fillStyle = '#ff9d2e'; ctx.fillText('▲', bx + bw + 5, by + 9); }
 
     // dizzy stars while dazed
     if (f.dazedT > 0) {
