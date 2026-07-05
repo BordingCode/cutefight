@@ -97,6 +97,10 @@ export class Controls {
       e.preventDefault();
     });
 
+    // ---- ring tap: during a catch, ANY tap anywhere counts (the ring is on the
+    // playfield, so people tap the ring itself — of course they do) ----
+    window.addEventListener('pointerdown', () => { this._ringTap = true; }, { capture: true });
+
     // ---- keyboard fallback ----
     this.keys = {};
     window.addEventListener('keydown', (e) => {

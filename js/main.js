@@ -73,7 +73,7 @@ function handleEvents() {
         $('catchbtn').classList.add('show');
         break;
       case 'recover': $('catchbtn').classList.remove('show'); break;
-      case 'throw': sfx.throw(); $('catchbtn').classList.remove('show'); break;
+      case 'throw': sfx.throw(); break;
       case 'ring_start': break;
       case 'struggle': sfx.struggle(); break;
       case 'caught':
@@ -100,9 +100,10 @@ function handleEvents() {
       case 'denied': sfx.struggle(); break;
     }
   }
-  // context button visibility safety net (e.g. daze timer ran out with no event consumed)
-  const dazedNow = world.foe && world.foe.dazedT > 0 && !world.catch;
-  $('catchbtn').classList.toggle('show', !!dazedNow);
+  // context button visibility: while dazed AND all through the throw/ring, so the
+  // player's thumb always has a live tap target
+  const showCatch = (world.foe && world.foe.dazedT > 0) || !!world.catch;
+  $('catchbtn').classList.toggle('show', !!showCatch);
   if (world.msg && world.msg !== handleEvents._lastMsg) showToast(world.msg);
   handleEvents._lastMsg = world.msg;
   renderCounts();

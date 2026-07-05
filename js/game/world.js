@@ -298,12 +298,16 @@ function stepCatch(w, dt, input) {
     if (c.t >= 0.42) { c.phase = 'ring'; c.t = 0; c.ringR = 96; w.events.push({ t: 'ring_start' }); }
     return;
   }
-  // ring shrinks 96 -> 10 over ~1.15s
-  c.ringR = 96 - (96 - 10) * (c.t / 1.15);
-  const done = c.ringR <= 10;
+  // ring shrinks 96 -> 10 over 1.5s, then lingers a beat. The catch window absorbs
+  // human reaction time: the green cue LEADS the window, and a slightly-late tap
+  // (within the grace period after full collapse) still catches.
+  const DUR = 1.5, GRACE = 0.25;
+  c.ringR = Math.max(10, 96 - (96 - 10) * (c.t / DUR));
+  const overtime = Math.max(0, c.t - DUR);
+  const done = overtime > GRACE;
   if (input.ringTap || done) {
     const r = c.ringR;
-    if (!done && r <= 34) {
+    if (!done && r <= 48) {
       // CAUGHT!
       w.caught++;
       w.events.push({ t: 'caught', x: f.x, y: f.y - 40 });
@@ -312,7 +316,7 @@ function stepCatch(w, dt, input) {
       w.engaged = false;
       w.catch = null;
       w.nextFoeT = 3.2;
-    } else if (!done && r <= 58 && c.resets < 1) {
+    } else if (!done && r <= 66 && c.resets < 1) {
       c.resets++;
       c.t = 0; c.ringR = 96;
       w.events.push({ t: 'struggle', x: f.x, y: f.y - 40 });

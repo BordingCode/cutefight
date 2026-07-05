@@ -218,8 +218,8 @@ export function draw(view, w, S) {
       ctx.setLineDash([6, 5]);
       ctx.beginPath(); ctx.arc(fx, cy, 34, 0, TAU); ctx.stroke();
       ctx.setLineDash([]);
-      // shrinking ring
-      const inSweet = c.ringR <= 34;
+      // shrinking ring — the green cue LEADS the catch window (reaction time)
+      const inSweet = c.ringR <= 56;
       ctx.strokeStyle = inSweet ? '#7dff8a' : '#ffffff';
       ctx.lineWidth = inSweet ? 6 : 4;
       ctx.beginPath(); ctx.arc(fx, cy, c.ringR, 0, TAU); ctx.stroke();
@@ -228,7 +228,7 @@ export function draw(view, w, S) {
       ctx.font = '800 17px sans-serif';
       ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = '#33272e';
-      const hint = inSweet ? 'TAP NOW!' : 'wait for it…';
+      const hint = inSweet ? 'TAP NOW! (anywhere)' : 'wait for it…';
       ctx.strokeText(hint, fx, cy + 74);
       ctx.fillStyle = inSweet ? '#7dff8a' : '#fff';
       ctx.fillText(hint, fx, cy + 74);
