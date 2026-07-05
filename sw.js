@@ -1,5 +1,5 @@
 // Cute Fight service worker — network-first, cache fallback. Bump CACHE on EVERY release.
-const CACHE = 'cutefight-v7';
+const CACHE = 'cutefight-v8';
 const SHELL = [
   './',
   'index.html',

@@ -97,6 +97,8 @@ export const sfx = {
   gaugeReady() { tone(784, 0.16, { type: 'triangle', gain: 0.14, slideTo: 1046 }); tone(1046, 0.2, { type: 'sine', gain: 0.1, delay: 0.1 }); },
   pickup() { tone(660, 0.1, { type: 'sine', gain: 0.16, slideTo: 990 }); tone(990, 0.12, { type: 'sine', gain: 0.1, delay: 0.06, slideTo: 1320 }); },
   levelup() { duck(0.6, 0.9); [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.15, delay: i * 0.08 })); },
+  shoot() { const v = vary(1); tone(720 * v, 0.07, { type: 'square', gain: 0.05, slideTo: 1100 * v }); },
+  bossWarn() { duck(0.7, 1.0); tone(110, 0.8, { type: 'sawtooth', gain: 0.2, slideTo: 70 }); tone(55, 1.0, { type: 'square', gain: 0.14 }); },
 };
 
 // ---- meadow music: gentle chiptune loop (pentatonic major, two voices + soft pulse bass)
