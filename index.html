@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Cute Fight</title>
+<meta name="description" content="A cute monster-catching brawler — fight, daze, and catch wild monsters on your journey to the Summit.">
+<meta name="theme-color" content="#6db9e8">
+<link rel="manifest" href="manifest.json?v=20260705">
+<link rel="icon" href="assets/icons/icon.svg?v=20260705" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260705">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="css/main.css?v=20260705">
+<script>
+// hub-stats tracker v2
+(function(){try{var A="cutefight",K="hubdev",d=localStorage,i=d.getItem(K);if(!i){i=([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)});d.setItem(K,i)}navigator.sendBeacon&&navigator.sendBeacon("https://hub-stats.mathiasjob.workers.dev/hit",JSON.stringify({a:A,d:i,w:screen.width,h:screen.height,m:matchMedia("(display-mode: standalone)").matches?1:0}))}catch(e){}})();
+</script>
+<script>
+// boot watchdog: if the game hasn't rendered within 3.5s, nuke SW + caches once and reload
+(function(){
+  setTimeout(function(){
+    if (window.__cf) return;
+    if (sessionStorage.getItem('cf_rescued')) return;
+    sessionStorage.setItem('cf_rescued', '1');
+    Promise.all([
+      'serviceWorker' in navigator ? navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}) : null,
+      window.caches ? caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}) : null
+    ]).then(function(){ location.reload(); });
+  }, 3500);
+})();
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="padzone"></div>
+<button class="actionbtn" id="atkbtn">👊<small>tap · hold · swipe↑</small></button>
+<button class="actionbtn" id="catchbtn">🟡</button>
+
+<div id="hud">
+  <div id="hearts"></div>
+  <div id="stats">
+    <span>🟡 <span id="orbcount">5</span></span>
+    <span>📗 <span id="caughtcount">0</span></span>
+    <button id="mutebtn">🔊</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<div id="title">
+  <h1>CUTE FIGHT</h1>
+  <p>fight · daze · catch — don't be too rough!</p>
+  <button id="startbtn">PLAY</button>
+</div>
+
+<div id="rotate"><span>📱</span>Turn your phone sideways to play!</div>
+
+<script type="module" src="js/main.js?v=20260705"></script>
+</body>
+</html>

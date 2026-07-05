@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#6db9e8"/>
+  <rect y="52" width="64" height="12" fill="#93d16c"/>
+  <g>
+    <!-- flame tail -->
+    <path d="M10 30 q-6 4 0 10 q1-3 3-4 q-1 4 2 6 q4-5 1-10 z" fill="#ff8a3d" stroke="#33272e" stroke-width="1.5"/>
+    <!-- body -->
+    <ellipse cx="34" cy="36" rx="18" ry="16" fill="#e8763e" stroke="#33272e" stroke-width="2"/>
+    <!-- ears -->
+    <path d="M22 24 l3-9 6 6 z" fill="#e8763e" stroke="#33272e" stroke-width="2"/>
+    <path d="M40 21 l5-8 4 8 z" fill="#e8763e" stroke="#33272e" stroke-width="2"/>
+    <!-- belly -->
+    <ellipse cx="42" cy="41" rx="8" ry="9" fill="#fff3df"/>
+    <!-- eye -->
+    <circle cx="42" cy="30" r="2.6" fill="#33272e"/>
+    <circle cx="43" cy="29" r="0.9" fill="#fff"/>
+    <!-- cheek -->
+    <circle cx="37" cy="35" r="2" fill="#ff9e9e"/>
+    <!-- feet -->
+    <rect x="24" y="49" width="5" height="6" rx="2" fill="#b5433c" stroke="#33272e" stroke-width="1.5"/>
+    <rect x="38" y="49" width="5" height="6" rx="2" fill="#b5433c" stroke="#33272e" stroke-width="1.5"/>
+  </g>
+</svg>
