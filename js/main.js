@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('game');
 const view = new CanvasView(canvas);
 const S = buildSprites();
-const controls = new Controls($('padzone'), $('atkbtn'), $('catchbtn'));
+const controls = new Controls($('padzone'), $('atkbtn'), $('catchbtn'), $('jumpbtn'));
 
 let world = createWorld();
 let started = false;
@@ -107,6 +107,54 @@ function handleEvents() {
   renderCounts();
 }
 
+// ---------- learn-by-doing coach (first runs only; one hint at a time) ----------
+const TUT_KEY = 'cutefight_tut_v1';
+const tutSteps = [
+  { text: '👈 Slide your LEFT thumb to walk' },
+  { text: 'Tap the PAW to attack! It aims for you' },
+  { text: 'Tap ⬆ to JUMP — dodge the “!” pounce!' },
+  { text: 'HOLD the paw = heavy hit · SWIPE it up = launch!' },
+];
+let tutStep = localStorage.getItem(TUT_KEY) ? -1 : 0;
+let tutWalk = 0;
+function tutShow() {
+  const el = $('hint');
+  if (tutStep < 0 || tutStep >= tutSteps.length) { el.classList.remove('show'); return; }
+  el.textContent = tutSteps[tutStep].text;
+  el.classList.add('show');
+}
+function tutAdvance() {
+  tutStep++;
+  if (tutStep >= tutSteps.length) { tutStep = -1; localStorage.setItem(TUT_KEY, '1'); }
+  tutShow();
+}
+function tutUpdate(dt, input) {
+  if (tutStep < 0) return;
+  if (tutStep === 0) {
+    if (input.moveX !== 0) tutWalk += dt;
+    if (tutWalk > 0.7) tutAdvance();
+  } else if (tutStep === 1) {
+    if (world.events.some((e) => e.t === 'swing')) tutAdvance();
+  } else if (tutStep === 2) {
+    if (world.events.some((e) => e.t === 'hop')) tutAdvance();
+  } else if (tutStep === 3) {
+    if (world.events.some((e) => e.t === 'launch' || (e.t === 'swing' && e.big))) tutAdvance();
+  }
+}
+
+// visible floating joystick — mirrors the touch pad state
+function updateJoystick() {
+  const base = $('joybase'), knob = $('joyknob');
+  const pad = controls.pad;
+  if (pad.id === -1) { base.classList.remove('show'); return; }
+  base.classList.add('show');
+  base.style.left = pad.ax + 'px';
+  base.style.top = pad.ay + 'px';
+  const dx = Math.max(-52, Math.min(52, pad.x - pad.ax));
+  const dy = Math.max(-30, Math.min(30, pad.y - pad.ay));
+  knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+
 // ---------- loop ----------
 const loop = new GameLoop({
   update(dt) {
@@ -115,10 +163,12 @@ const loop = new GameLoop({
     if (FX.freeze > 0) { FX.freeze -= dt; return; } // hitpause: world holds, FX continue
     const input = controls.poll();
     step(world, dt, input);
+    tutUpdate(dt, input);
     handleEvents();
   },
   render() {
     draw(view, world, S);
+    updateJoystick();
   },
 });
 
@@ -129,6 +179,7 @@ $('startbtn').addEventListener('pointerup', () => {
   initAudio(); resumeAudio(); startMusic();
   $('title').classList.add('hidden');
   started = true;
+  tutShow();
 });
 $('mutebtn').addEventListener('pointerup', (e) => {
   const m = setMuted(!isMuted());

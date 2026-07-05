@@ -6,13 +6,13 @@
 <title>Cute Fight</title>
 <meta name="description" content="A cute monster-catching brawler — fight, daze, and catch wild monsters on your journey to the Summit.">
 <meta name="theme-color" content="#6db9e8">
-<link rel="manifest" href="manifest.json?v=20260705">
-<link rel="icon" href="assets/icons/icon.svg?v=20260705" type="image/svg+xml">
-<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260705">
+<link rel="manifest" href="manifest.json?v=20260705b">
+<link rel="icon" href="assets/icons/icon.svg?v=20260705b" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260705b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/main.css?v=20260705">
+<link rel="stylesheet" href="css/main.css?v=20260705b">
 <script>
 // hub-stats tracker v2
 (function(){try{var A="cutefight",K="hubdev",d=localStorage.getItem(K);if(!d){d=(self.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+"."+Math.random().toString(36).slice(2));localStorage.setItem(K,d);}var u="https://hub-stats.mathiasjob.workers.dev/hit",b=JSON.stringify({app:A,d:d});if(navigator.sendBeacon){navigator.sendBeacon(u,b);}else{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors"});}}catch(e){}})();
@@ -36,6 +36,10 @@
 <canvas id="game"></canvas>
 
 <div id="padzone"></div>
+<div id="joybase"><div id="joyknob"></div></div>
+<button class="actionbtn" id="jumpbtn">
+  <svg width="30" height="30" viewBox="0 0 32 32"><path d="M16 5 L27 17 H21 V27 H11 V17 H5 Z" fill="#33272e"/></svg>
+</button>
 <button class="actionbtn" id="atkbtn">
   <svg width="38" height="38" viewBox="0 0 32 32"><g fill="#33272e"><ellipse cx="16" cy="20" rx="9" ry="7"/><circle cx="7" cy="13" r="3.4"/><circle cx="13" cy="9" r="3.4"/><circle cx="19" cy="9" r="3.4"/><circle cx="25" cy="13" r="3.4"/></g></svg>
   <small>tap · hold · swipe↑</small>
@@ -53,6 +57,7 @@
   </div>
 </div>
 <div id="toast"></div>
+<div id="hint"></div>
 
 <div id="title">
   <h1>CUTE FIGHT</h1>
@@ -62,6 +67,6 @@
 
 <div id="rotate"><span>📱</span>Turn your phone sideways to play!</div>
 
-<script type="module" src="js/main.js?v=20260705"></script>
+<script type="module" src="js/main.js?v=20260705b"></script>
 </body>
 </html>

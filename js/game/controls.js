@@ -1,10 +1,10 @@
 // Touch grammar (research-backed): LEFT half = floating move pad (slide to walk,
-// flick UP to hop). RIGHT = one big attack button — tap = light, hold&release = heavy,
-// slide up off it = launcher. A context CATCH button appears only when a foe is dazed.
-// Keyboard fallback for desktop/testing: A/D or arrows move, Space hop, J light,
-// K hold = heavy, W or L launcher, E catch/ring-tap.
+// flick UP also hops). RIGHT = JUMP button + one big attack button — tap = light,
+// hold&release = heavy, slide up off it = launcher. A context CATCH button appears
+// only when a foe is dazed. Keyboard fallback for desktop/testing: A/D or arrows move,
+// Space hop, J light, K hold = heavy, W or L launcher, E catch/ring-tap.
 export class Controls {
-  constructor(padZone, atkBtn, catchBtn) {
+  constructor(padZone, atkBtn, catchBtn, jumpBtn) {
     this.moveX = 0;
     this._hop = false; this._light = false; this._heavyRelease = false;
     this._launcher = false; this._catch = false; this._ringTap = false;
@@ -19,7 +19,7 @@ export class Controls {
       this.pad.x = e.clientX; this.pad.y = e.clientY;
       this.pad.lastY = e.clientY; this.pad.lastT = performance.now();
       this.pad.hopLock = false;
-      padZone.setPointerCapture(e.pointerId);
+      try { padZone.setPointerCapture(e.pointerId); } catch (_) {}
       this.padActive = true;
       this.padAX = e.clientX; this.padAY = e.clientY;
       e.preventDefault();
@@ -52,7 +52,7 @@ export class Controls {
       this.atk.t0 = performance.now();
       this.atk.y0 = e.clientY;
       this.atk.launcherFired = false;
-      atkBtn.setPointerCapture(e.pointerId);
+      try { atkBtn.setPointerCapture(e.pointerId); } catch (_) {}
       atkBtn.classList.add('pressed');
       e.preventDefault();
     });
@@ -79,6 +79,16 @@ export class Controls {
     };
     atkBtn.addEventListener('pointerup', atkEnd);
     atkBtn.addEventListener('pointercancel', atkEnd);
+
+    // ---- jump button ----
+    jumpBtn.addEventListener('pointerdown', (e) => {
+      this._hop = true;
+      jumpBtn.classList.add('pressed');
+      e.preventDefault();
+    });
+    const jumpEnd = () => jumpBtn.classList.remove('pressed');
+    jumpBtn.addEventListener('pointerup', jumpEnd);
+    jumpBtn.addEventListener('pointercancel', jumpEnd);
 
     // ---- catch button (context) ----
     catchBtn.addEventListener('pointerdown', (e) => {
@@ -109,8 +119,8 @@ export class Controls {
     let mx = 0;
     if (this.pad.id !== -1) {
       const dx = this.pad.x - this.pad.ax;
-      mx = Math.max(-1, Math.min(1, dx / 46));
-      if (Math.abs(mx) < 0.18) mx = 0; // deadzone
+      mx = Math.max(-1, Math.min(1, dx / 52));
+      if (Math.abs(mx) < 0.12) mx = 0; // deadzone
     }
     if (this.keys['KeyA'] || this.keys['ArrowLeft']) mx = -1;
     if (this.keys['KeyD'] || this.keys['ArrowRight']) mx = 1;

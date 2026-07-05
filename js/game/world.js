@@ -107,16 +107,19 @@ function hitFoe(w, kind) {
   }
 }
 
-// player attack hitbox check — reach in front of the player (or above for air hits)
+// player attack hitbox check. Auto-face: the player owns movement, the game owns
+// targeting (Archero split-control) — a tap never "misses backwards".
 function tryHit(w, kind) {
   const p = w.player, f = w.foe;
   if (!f) return;
   const reach = kind === 'heavy' ? 86 : 72;
   const dx = f.x - p.x;
-  const facingOK = sign(dx) === p.facing || Math.abs(dx) < 26;
   const closeX = Math.abs(dx) < reach;
-  const closeY = Math.abs((f.y - f.vy * 0) - p.y) < (kind === 'air' || !f.onGround ? 110 : 60);
-  if (facingOK && closeX && closeY) hitFoe(w, kind);
+  const closeY = Math.abs(f.y - p.y) < (kind === 'air' || !f.onGround ? 110 : 60);
+  if (closeX && closeY) {
+    p.facing = sign(dx) || p.facing;
+    hitFoe(w, kind);
+  }
 }
 
 function stepPlayer(w, dt, input) {
