@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="css/main.css?v=20260705">
 <script>
 // hub-stats tracker v2
-(function(){try{var A="cutefight",K="hubdev",d=localStorage,i=d.getItem(K);if(!i){i=([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)});d.setItem(K,i)}navigator.sendBeacon&&navigator.sendBeacon("https://hub-stats.mathiasjob.workers.dev/hit",JSON.stringify({a:A,d:i,w:screen.width,h:screen.height,m:matchMedia("(display-mode: standalone)").matches?1:0}))}catch(e){}})();
+(function(){try{var A="cutefight",K="hubdev",d=localStorage.getItem(K);if(!d){d=(self.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+"."+Math.random().toString(36).slice(2));localStorage.setItem(K,d);}var u="https://hub-stats.mathiasjob.workers.dev/hit",b=JSON.stringify({app:A,d:d});if(navigator.sendBeacon){navigator.sendBeacon(u,b);}else{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors"});}}catch(e){}})();
 </script>
 <script>
 // boot watchdog: if the game hasn't rendered within 3.5s, nuke SW + caches once and reload
