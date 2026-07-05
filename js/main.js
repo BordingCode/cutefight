@@ -97,6 +97,7 @@ function handleEvents() {
         break;
       case 'wipe': sfx.wipe(); renderHearts(); break;
       case 'engage': sfx.engage(); break;
+      case 'denied': sfx.struggle(); break;
     }
   }
   // context button visibility safety net (e.g. daze timer ran out with no event consumed)

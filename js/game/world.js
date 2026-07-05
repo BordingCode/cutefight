@@ -83,7 +83,10 @@ function hitFoe(w, kind) {
     w.events.push({ t: 'hit', x: f.x, y: f.y - 30, strong, big: false });
   } else {
     const kb = { light: 150, combo: 330, heavy: 470 }[kind];
-    f.vx = dir * kb * (dazedNow ? 0.5 : 1);
+    // gentler knockback once dazed OR on the hit that dazes it — the catchable
+    // monster should wobble NEAR you, not fly out of orb range
+    const gentle = dazedNow || f.daze >= DAZE_CATCH;
+    f.vx = dir * kb * (gentle ? 0.4 : 1);
     if (kind === 'heavy') { f.vy = -220; f.onGround = false; f.state = 'air'; }
     else if (f.state !== 'air') { f.state = 'hurt'; f.timer = 0.22; }
     w.events.push({ t: 'hit', x: f.x, y: f.y - 30, strong, big: kind !== 'light' });
@@ -350,11 +353,20 @@ export function step(w, dt, input) {
   } else {
     stepPlayer(w, dt, input);
     if (w.foe) stepFoe(w, dt);
-    // start a catch?
-    if (input.catchPress && w.foe && w.foe.dazedT > 0 && w.orbs > 0 && Math.abs(w.foe.x - w.player.x) < 200) {
-      w.orbs--;
-      w.catch = { phase: 'throw', t: 0, ringR: 96, resets: 0 };
-      w.events.push({ t: 'throw', x: w.player.x, y: w.player.y - 40 });
+    // start a catch? NEVER fail silently — the button invited the tap.
+    if (input.catchPress && w.foe && w.foe.dazedT > 0) {
+      const dist = Math.abs(w.foe.x - w.player.x);
+      if (w.orbs <= 0) {
+        toast(w, 'No orbs left!', 2.2);
+        w.events.push({ t: 'denied' });
+      } else if (dist > 340) {
+        toast(w, 'Too far — walk closer and throw again!', 2.2);
+        w.events.push({ t: 'denied' });
+      } else {
+        w.orbs--;
+        w.catch = { phase: 'throw', t: 0, ringR: 96, resets: 0 };
+        w.events.push({ t: 'throw', x: w.player.x, y: w.player.y - 40 });
+      }
     }
   }
 
