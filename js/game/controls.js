@@ -68,20 +68,25 @@ export class Controls {
 
   // one poll per sim step; edge flags are consumed
   poll() {
-    let mx = 0;
+    let mx = 0, my = 0;
     let dragging = false;
     if (this.pad.id !== -1) {
       dragging = true;                          // any touch = holding the reins
       const dx = this.pad.x - this.pad.ax;
+      const dy = this.pad.y - this.pad.ay;
       mx = Math.max(-1, Math.min(1, dx / 52));
-      if (Math.abs(mx) < 0.12) mx = 0;          // deadzone: touch-and-hold = stand still
+      my = Math.max(-1, Math.min(1, dy / 52));
+      if (Math.hypot(mx, my) < 0.12) { mx = 0; my = 0; } // deadzone: hold = stand still
     }
     if (this.keys['KeyA'] || this.keys['ArrowLeft']) { mx = -1; dragging = true; }
     if (this.keys['KeyD'] || this.keys['ArrowRight']) { mx = 1; dragging = true; }
-    if (this.keys['KeyS']) dragging = true;      // hold still
+    if (this.keys['KeyW'] || this.keys['ArrowUp']) { my = -1; dragging = true; }
+    if (this.keys['KeyS'] || this.keys['ArrowDown']) { my = 1; dragging = true; }
+    if (this.keys['KeyX']) dragging = true;      // hold still (rein in)
 
     const out = {
       moveX: mx,
+      moveY: my,
       dragging,
       tapped: this._tap,
       ability: this._ability,

@@ -1,14 +1,14 @@
-// Renderer — reads world state, never mutates it. Pixel sprites are baked 1px-per-cell
-// canvases blitted at SCALE with smoothing off. Feet anchor: sprite bottom row sits on
-// the entity's y (the ground line when grounded).
+// Renderer — reads world state, never mutates it. Portrait Archero-style room:
+// horizon band up top (baked hills), a grass floor plane below, entities drawn
+// depth-sorted by their floor y; `alt` lifts the sprite off its shadow.
 import { WORLD_W, WORLD_H } from '../engine/canvas.js';
-import { GROUND_Y, DAZE_CATCH, typeMult } from './world.js';
-
-const ELEM_COLOR = { ember: '#ff8a3d', leaf: '#8fd06a', tide: '#4fa3d8', spark: '#f5d34a', frost: '#a9c8ef', gust: '#b9d4c2' };
+import { FLOOR_TOP, FLOOR_BOT, DOOR_X, DAZE_CATCH, typeMult } from './world.js';
 import { FX, drawFX } from '../engine/fx.js';
 import { TAU } from '../engine/vec.js';
 
-const SCALE = 4;            // 24px art -> 96px on the 960x540 world (chunky, Smash-scale)
+const ELEM_COLOR = { ember: '#ff8a3d', leaf: '#8fd06a', tide: '#4fa3d8', spark: '#f5d34a', frost: '#a9c8ef', gust: '#b9d4c2' };
+
+const SCALE = 4;            // 24px art -> 96px
 const SPR = 24 * SCALE;
 
 function pickFrame(frames, animT, rate = 0.28) {
@@ -22,266 +22,285 @@ function drawSprite(ctx, frame, x, y, facing, squashY = 1) {
 }
 
 // ---------------------------------------------------------------------------
-// Pre-rendered scenery. Hills/bushes/ground are baked ONCE into seamless
-// repeating strips; per frame we just blit 2-3 copies of each. This replaces
-// hundreds of path segments + gradient builds per frame — the phone lag fix.
+// Pre-baked scenery (built once): horizon hill strips + the grass floor.
 // ---------------------------------------------------------------------------
-const STRIP_W = 1920;
 let BG = null;
 
-function hillStrip(baseY, waves, color) {
+function hillBand(baseY, waves, color, h) {
   const c = document.createElement('canvas');
-  c.width = STRIP_W; c.height = WORLD_H;
+  c.width = WORLD_W; c.height = h;
   const x2 = c.getContext('2d');
   x2.fillStyle = color;
   x2.beginPath();
-  x2.moveTo(0, WORLD_H);
-  for (let x = 0; x <= STRIP_W; x += 6) {
-    // integer wave counts over the strip width -> perfectly seamless tiling
+  x2.moveTo(0, h);
+  for (let x = 0; x <= WORLD_W; x += 6) {
     let y = baseY;
-    for (const [n, amp, ph] of waves) y += Math.sin((x / STRIP_W) * TAU * n + ph) * amp;
+    for (const [n, amp, ph] of waves) y += Math.sin((x / WORLD_W) * TAU * n + ph) * amp;
     x2.lineTo(x, y);
   }
-  x2.lineTo(STRIP_W, WORLD_H);
+  x2.lineTo(WORLD_W, h);
   x2.closePath();
   x2.fill();
   return c;
 }
 
-function buildBG(S) {
-  const far = hillStrip(330, [[2, 26, 0], [5, 15, 1.7]], '#b6d9a4');
-  const mid = hillStrip(400, [[3, 20, 0.9], [7, 9, 2.4]], '#8cc47e');
-  // bushes baked onto the mid strip's foot
-  const mx = mid.getContext('2d');
-  for (let i = 0; i < 8; i++) {
-    const bx = (i * 253 + 60) % STRIP_W;
-    mx.fillStyle = i % 3 ? '#79b768' : '#6aa95c';
-    mx.beginPath();
-    mx.ellipse(bx, 442, 42, 26 + (i % 3) * 6, 0, Math.PI, 0);
-    mx.fill();
-  }
-  // ground strip: one row of grass tiles + soil below, baked at final scale
-  const T = 16 * SCALE;
-  const gh = WORLD_H + 220 - (GROUND_Y - 10);
-  const ground = document.createElement('canvas');
-  ground.width = STRIP_W; ground.height = gh;
-  const gx = ground.getContext('2d');
-  gx.imageSmoothingEnabled = false;
-  for (let x = 0; x < STRIP_W; x += T) {
-    gx.drawImage(S.tiles.grass, x, 0, T, T);
-    for (let y = T; y < gh; y += T) gx.drawImage(S.tiles.soil, x, y, T, T);
-  }
-  BG = { far, mid, ground, sky: null, skyKey: '' };
-}
+function buildBG() {
+  const far = hillBand(300, [[2, 24, 0], [4, 13, 1.7]], '#b6d9a4', FLOOR_TOP);
+  const mid = hillBand(368, [[3, 18, 0.9], [5, 8, 2.4]], '#8cc47e', FLOOR_TOP);
 
-// blit a repeating strip with parallax; covers the letterbox too
-function blitStrip(ctx, view, strip, par, camX, y) {
-  const off = camX * par;
-  let x = Math.floor((view.bgX0 + off) / STRIP_W) * STRIP_W - off;
-  for (; x < view.bgX1; x += STRIP_W) ctx.drawImage(strip, x, y);
+  // grass floor plane with deterministic tufts + darker back edge
+  const floor = document.createElement('canvas');
+  floor.width = WORLD_W; floor.height = WORLD_H - FLOOR_TOP + 40;
+  const g = floor.getContext('2d');
+  g.fillStyle = '#7cbf5f';
+  g.fillRect(0, 0, floor.width, floor.height);
+  for (let i = 0; i < 240; i++) {
+    const x = (i * 131) % WORLD_W;
+    const y = (i * 197) % floor.height;
+    g.fillStyle = i % 3 === 0 ? '#8fd06a' : i % 3 === 1 ? '#6fae52' : '#93d16c';
+    g.fillRect(x, y, 6, 4);
+  }
+  // back edge (meets the hills)
+  g.fillStyle = '#5f9a4b';
+  g.fillRect(0, 0, WORLD_W, 8);
+  BG = { far, mid, floor, sky: null, skyKey: '' };
 }
 
 export function draw(view, w, S) {
   const ctx = view.ctx;
-  if (!BG) buildBG(S);
+  if (!BG) buildBG();
   view.begin();
   ctx.imageSmoothingEnabled = false;
 
   ctx.save();
   ctx.translate(FX.shakeX, FX.shakeY);
 
-  // --- sky (gradient cached; only rebuilt when the viewport changes) ---
+  // --- sky (cached gradient; covers letterbox too) ---
   const skyKey = view.bgY0 + ':' + view.bgY1;
   if (BG.skyKey !== skyKey) {
-    const g = ctx.createLinearGradient(0, view.bgY0, 0, WORLD_H);
+    const g = ctx.createLinearGradient(0, view.bgY0, 0, FLOOR_TOP);
     g.addColorStop(0, '#6db9e8');
-    g.addColorStop(0.55, '#a6dcf2');
-    g.addColorStop(1, '#d9f2fa');
+    g.addColorStop(1, '#c8ecf7');
     BG.sky = g; BG.skyKey = skyKey;
   }
   ctx.fillStyle = BG.sky;
-  ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, view.bgY1 - view.bgY0);
+  ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, FLOOR_TOP - view.bgY0);
 
-  // sun
+  // sun + drifting clouds
   ctx.fillStyle = 'rgba(255,240,190,0.9)';
-  ctx.beginPath(); ctx.arc(WORLD_W - 150, 90, 38, 0, TAU); ctx.fill();
-
-  // clouds (slow parallax, deterministic positions)
+  ctx.beginPath(); ctx.arc(WORLD_W - 110, 90, 34, 0, TAU); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  for (let i = 0; i < 6; i++) {
-    const cx = ((i * 347 - w.camX * 0.12) % (WORLD_W + 200) + WORLD_W + 200) % (WORLD_W + 200) - 100;
-    const cy = 60 + (i * 53) % 110;
+  for (let i = 0; i < 4; i++) {
+    const cx = ((i * 197 + w.t * 8) % (WORLD_W + 160)) - 80;
+    const cy = 60 + (i * 67) % 130;
     ctx.beginPath();
-    ctx.ellipse(cx, cy, 46, 15, 0, 0, TAU);
-    ctx.ellipse(cx + 26, cy - 8, 28, 12, 0, 0, TAU);
+    ctx.ellipse(cx, cy, 42, 14, 0, 0, TAU);
+    ctx.ellipse(cx + 24, cy - 8, 26, 11, 0, 0, TAU);
     ctx.fill();
   }
 
-  // --- pre-baked parallax strips ---
-  blitStrip(ctx, view, BG.far, 0.18, w.camX, 0);
-  blitStrip(ctx, view, BG.mid, 0.45, w.camX, 0);
-  blitStrip(ctx, view, BG.ground, 1, w.camX, GROUND_Y - 10);
+  // horizon hills
+  ctx.drawImage(BG.far, 0, 0);
+  ctx.drawImage(BG.mid, 0, 0);
 
-  // --- orb pickups on the path ---
-  if (w.pickups) {
-    for (const pk of w.pickups) {
-      const px = pk.x - w.camX;
-      if (px < -30 || px > WORLD_W + 30) continue;
-      const bob = Math.sin(w.t * 4 + pk.x) * 4;
-      ctx.drawImage(S.orb, px - 12, pk.y - 34 + bob, 24, 24);
-    }
+  // --- floor plane (fills to the bottom letterbox too) ---
+  ctx.drawImage(BG.floor, 0, FLOOR_TOP);
+  if (view.bgY1 > WORLD_H) {
+    ctx.fillStyle = '#7cbf5f';
+    ctx.fillRect(view.bgX0, WORLD_H, view.bgX1 - view.bgX0, view.bgY1 - WORLD_H);
   }
+  ctx.fillStyle = '#7cbf5f';
+  if (view.bgX0 < 0) { ctx.fillRect(view.bgX0, FLOOR_TOP, -view.bgX0, view.bgY1 - FLOOR_TOP); ctx.fillRect(WORLD_W, FLOOR_TOP, view.bgX1 - WORLD_W, view.bgY1 - FLOOR_TOP); }
 
-  // --- foe ---
-  if (w.foe) {
-    const f = w.foe;
-    const fx = f.x - w.camX;
-    // shadow
-    ctx.fillStyle = 'rgba(40,50,40,0.25)';
-    ctx.beginPath(); ctx.ellipse(fx, GROUND_Y + 4, 26, 7, 0, 0, TAU); ctx.fill();
-
-    let frame;
-    const a = S[f.species];
-    if (f.state === 'tell') frame = a.tell[0];
-    else if (f.state === 'lunge' || (!f.onGround)) frame = a.lunge[0];
-    else if (f.state === 'wander') frame = pickFrame(a.walk, f.animT, 0.2);
-    else frame = pickFrame(a.idle, f.animT, f.state === 'dazed' ? 0.22 : 0.42);
-    const squash = f.state === 'down' ? 0.62 : (f.state === 'tell' ? 0.88 : 1);
-    const wob = f.state === 'dazed' ? Math.sin(f.animT * 9) * 3 : 0;
-    ctx.save();
-    if (wob) { ctx.translate(fx, f.y); ctx.rotate(wob * 0.03); ctx.translate(-fx, -f.y); }
-    drawSprite(ctx, frame, fx, f.y, f.facing, squash);
-    if (f.hitFlash > 0) {
-      ctx.globalAlpha = Math.min(1, f.hitFlash / 0.09) * 0.85;
-      drawSprite(ctx, { img: frame.white, imgL: frame.white }, fx, f.y, 1, squash);
-      ctx.globalAlpha = 1;
-    }
-    ctx.restore();
-
-    // "!" telegraph
-    if (f.state === 'tell') {
-      const bump = Math.sin(f.animT * 20) * 2;
-      ctx.font = '900 30px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.lineWidth = 5; ctx.strokeStyle = '#33272e';
-      ctx.strokeText('!', fx, f.y - SPR - 8 + bump);
-      ctx.fillStyle = '#ffd23e';
-      ctx.fillText('!', fx, f.y - SPR - 8 + bump);
-    }
-
-    // daze meter above the foe: catch band marked, KO at the end
-    const bw = 76, bh = 9, bx = fx - bw / 2, by = f.y - SPR - 26;
-    ctx.fillStyle = 'rgba(30,22,30,0.75)';
-    ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
-    // catch band (gold zone)
-    ctx.fillStyle = 'rgba(255,210,80,0.35)';
-    ctx.fillRect(bx + bw * (DAZE_CATCH / 100), by, bw * (1 - DAZE_CATCH / 100), bh);
-    // fill
-    const k = f.daze / 100;
-    ctx.fillStyle = f.dazedT > 0 ? '#ffd23e' : '#ff9d5c';
-    ctx.fillRect(bx, by, bw * k, bh);
-    // KO tick
-    ctx.fillStyle = '#e8434f';
-    ctx.fillRect(bx + bw - 2, by - 2, 2, bh + 4);
-    // element badge + live matchup chevron: ▼ = weak against you, ▲ = strong vs you
-    ctx.font = '700 12px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = ELEM_COLOR[f.element] || '#ccc';
-    ctx.fillRect(bx - 16, by - 3, 12, 12);
-    ctx.strokeStyle = '#33272e'; ctx.lineWidth = 2; ctx.strokeRect(bx - 16, by - 3, 12, 12);
-    const mult = typeMult(w.player.element, f.element);
-    if (mult > 1.01) { ctx.fillStyle = '#e8434f'; ctx.fillText('▼', bx + bw + 5, by + 9); }
-    else if (mult < 0.99) { ctx.fillStyle = '#ff9d2e'; ctx.fillText('▲', bx + bw + 5, by + 9); }
-
-    // dizzy stars while dazed
-    if (f.dazedT > 0) {
-      for (let i = 0; i < 3; i++) {
-        const ang = f.animT * 3.6 + (i * TAU) / 3;
-        const sx = fx + Math.cos(ang) * 22;
-        const sy = f.y - SPR + 6 + Math.sin(ang) * 7;
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = i % 2 ? '#ffd23e' : '#fff0a8';
-        ctx.fillText('★', sx, sy);
-      }
-    }
-  }
-
-  // --- player ---
+  // --- the doorway at the top of the room ---
   {
-    const p = w.player;
-    const px = p.x - w.camX;
-    ctx.fillStyle = 'rgba(40,50,40,0.25)';
-    ctx.beginPath(); ctx.ellipse(px, GROUND_Y + 4, 26, 7, 0, 0, TAU); ctx.fill();
+    const open = w.doorOpen;
+    const dx = DOOR_X;
+    // hedge walls along the top edge with a gap for the door
+    ctx.fillStyle = '#5f9a4b';
+    ctx.fillRect(0, FLOOR_TOP - 6, dx - 64, 20);
+    ctx.fillRect(dx + 64, FLOOR_TOP - 6, WORLD_W - dx - 64, 20);
+    // door arch
+    ctx.fillStyle = open ? '#33272e' : '#4d7a3e';
+    ctx.beginPath();
+    ctx.moveTo(dx - 52, FLOOR_TOP + 14);
+    ctx.lineTo(dx - 52, FLOOR_TOP - 34);
+    ctx.arc(dx, FLOOR_TOP - 34, 52, Math.PI, 0);
+    ctx.lineTo(dx + 52, FLOOR_TOP + 14);
+    ctx.closePath();
+    ctx.fill();
+    if (open) {
+      const pulse = 0.55 + Math.sin(w.t * 5) * 0.2;
+      ctx.fillStyle = `rgba(255,223,126,${pulse})`;
+      ctx.beginPath();
+      ctx.moveTo(dx - 38, FLOOR_TOP + 12);
+      ctx.lineTo(dx - 38, FLOOR_TOP - 28);
+      ctx.arc(dx, FLOOR_TOP - 28, 38, Math.PI, 0);
+      ctx.lineTo(dx + 38, FLOOR_TOP + 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = '800 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 4; ctx.strokeStyle = '#33272e';
+      ctx.strokeText('▲ next', dx, FLOOR_TOP - 52);
+      ctx.fillStyle = '#ffdf7e';
+      ctx.fillText('▲ next', dx, FLOOR_TOP - 52);
+    }
+  }
+
+  // room tag
+  ctx.font = '800 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(51,39,46,0.6)';
+  ctx.strokeText(`Meadow Reach · Room ${w.room}`, WORLD_W / 2, 24 - Math.min(0, view.bgY0 + 24));
+  ctx.fillStyle = '#fff3df';
+  ctx.fillText(`Meadow Reach · Room ${w.room}`, WORLD_W / 2, 24 - Math.min(0, view.bgY0 + 24));
+
+  // --- depth-sorted drawables ---
+  const items = [];
+  for (const pk of w.pickups) items.push({ y: pk.y, kind: 'pickup', o: pk });
+  if (w.foe) items.push({ y: w.foe.y, kind: 'foe', o: w.foe });
+  items.push({ y: w.player.y, kind: 'player', o: w.player });
+  items.sort((a, b) => a.y - b.y);
+
+  for (const it of items) {
+    if (it.kind === 'pickup') {
+      const pk = it.o;
+      const bob = Math.sin(w.t * 4 + pk.x) * 4;
+      ctx.fillStyle = 'rgba(40,60,35,0.25)';
+      ctx.beginPath(); ctx.ellipse(pk.x, pk.y + 3, 12, 5, 0, 0, TAU); ctx.fill();
+      ctx.drawImage(S.orb, pk.x - 12, pk.y - 30 + bob, 24, 24);
+      continue;
+    }
+    if (it.kind === 'foe') {
+      const f = it.o;
+      ctx.fillStyle = 'rgba(40,60,35,0.28)';
+      ctx.beginPath(); ctx.ellipse(f.x, f.y + 4, 26 * (1 - Math.min(0.5, f.alt / 400)), 8, 0, 0, TAU); ctx.fill();
+
+      const a = S[f.species];
+      let frame;
+      if (f.state === 'tell') frame = a.tell[0];
+      else if (f.state === 'lunge' || f.alt > 0) frame = a.lunge[0];
+      else if (f.state === 'wander') frame = pickFrame(a.walk, f.animT, 0.2);
+      else frame = pickFrame(a.idle, f.animT, f.state === 'dazed' ? 0.22 : 0.42);
+      const squash = f.state === 'down' ? 0.62 : (f.state === 'tell' ? 0.88 : 1);
+      const wob = f.state === 'dazed' ? Math.sin(f.animT * 9) * 3 : 0;
+      const fy = f.y - f.alt;
+      ctx.save();
+      if (wob) { ctx.translate(f.x, fy); ctx.rotate(wob * 0.03); ctx.translate(-f.x, -fy); }
+      drawSprite(ctx, frame, f.x, fy, f.facing, squash);
+      if (f.hitFlash > 0) {
+        ctx.globalAlpha = Math.min(1, f.hitFlash / 0.09) * 0.85;
+        drawSprite(ctx, { img: frame.white, imgL: frame.white }, f.x, fy, 1, squash);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+
+      if (f.state === 'tell') {
+        const bump = Math.sin(f.animT * 20) * 2;
+        ctx.font = '900 30px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 5; ctx.strokeStyle = '#33272e';
+        ctx.strokeText('!', f.x, fy - SPR - 8 + bump);
+        ctx.fillStyle = '#ffd23e';
+        ctx.fillText('!', f.x, fy - SPR - 8 + bump);
+      }
+
+      // daze meter above the foe
+      const bw = 76, bh = 9, bx = f.x - bw / 2, by = fy - SPR - 26;
+      ctx.fillStyle = 'rgba(30,22,30,0.75)';
+      ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+      ctx.fillStyle = 'rgba(255,210,80,0.35)';
+      ctx.fillRect(bx + bw * (DAZE_CATCH / 100), by, bw * (1 - DAZE_CATCH / 100), bh);
+      const k = f.daze / 100;
+      ctx.fillStyle = f.dazedT > 0 ? '#ffd23e' : '#ff9d5c';
+      ctx.fillRect(bx, by, bw * k, bh);
+      ctx.fillStyle = '#e8434f';
+      ctx.fillRect(bx + bw - 2, by - 2, 2, bh + 4);
+      ctx.font = '700 12px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = ELEM_COLOR[f.element] || '#ccc';
+      ctx.fillRect(bx - 16, by - 3, 12, 12);
+      ctx.strokeStyle = '#33272e'; ctx.lineWidth = 2; ctx.strokeRect(bx - 16, by - 3, 12, 12);
+      const mult = typeMult(w.player.element, f.element);
+      if (mult > 1.01) { ctx.fillStyle = '#e8434f'; ctx.fillText('▼', bx + bw + 5, by + 9); }
+      else if (mult < 0.99) { ctx.fillStyle = '#ff9d2e'; ctx.fillText('▲', bx + bw + 5, by + 9); }
+
+      if (f.dazedT > 0) {
+        for (let i = 0; i < 3; i++) {
+          const ang = f.animT * 3.6 + (i * TAU) / 3;
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = i % 2 ? '#ffd23e' : '#fff0a8';
+          ctx.fillText('★', f.x + Math.cos(ang) * 22, fy - SPR + 6 + Math.sin(ang) * 7);
+        }
+      }
+      continue;
+    }
+    // player
+    const p = it.o;
+    ctx.fillStyle = 'rgba(40,60,35,0.28)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, 26, 8, 0, 0, TAU); ctx.fill();
 
     const a = S.cinder;
     let frame;
-    if (p.state === 'atk') frame = p.atkKind === 'light' || p.atkKind === 'air' ? a.atk[1] : (p.atkT > 0.16 ? a.atk[0] : a.atk[1]);
-    else if (p.charging && p.chargeT > 0.12) frame = a.atk[0];
+    if (p.dashT > 0) frame = a.atk[1];
+    else if (p.state === 'atk') frame = p.atkT > 0.1 ? a.atk[0] : a.atk[1];
     else if (p.state === 'walk') frame = pickFrame(a.walk, p.animT, 0.16);
-    else if (p.state === 'air') frame = a.walk[0];
     else frame = pickFrame(a.idle, p.animT, 0.45);
 
-    // i-frame blink after being hit
     const blink = p.iframes > 0 && Math.floor(p.iframes * 14) % 2 === 0;
-    if (!blink) {
-      // charge glow underfoot
-      if (p.charging && p.chargeT > 0.12) {
-        const cr = Math.min(1, p.chargeT / 0.28);
-        ctx.fillStyle = `rgba(255,180,90,${0.25 + cr * 0.3})`;
-        ctx.beginPath(); ctx.ellipse(px, GROUND_Y + 3, 30 + cr * 8, 9, 0, 0, TAU); ctx.fill();
-      }
-      drawSprite(ctx, frame, px, p.y, p.facing);
-    }
+    if (!blink) drawSprite(ctx, frame, p.x, p.y - p.alt, p.facing);
   }
 
   // --- catch sequence overlays ---
   if (w.catch && w.foe) {
     const c = w.catch;
     const f = w.foe;
-    const fx = f.x - w.camX;
+    const fy = f.y - f.alt;
     if (c.phase === 'throw') {
       const k = Math.min(1, c.t / 0.42);
-      const sx = w.player.x - w.camX, sy = w.player.y - 50;
-      const ox = sx + (fx - sx) * k;
-      const oy = sy + (f.y - 60 - sy) * k - Math.sin(k * Math.PI) * 90;
+      const sx = w.player.x, sy = w.player.y - 50;
+      const ox = sx + (f.x - sx) * k;
+      const oy = sy + (fy - 60 - sy) * k - Math.sin(k * Math.PI) * 90;
       ctx.save();
       ctx.translate(ox, oy);
       ctx.rotate(c.t * 14);
       ctx.drawImage(S.orb, -12, -12, 24, 24);
       ctx.restore();
     } else {
-      const cy = f.y - 40;
-      // dim the world a touch — this is the moment
+      const cy = fy - 40;
       ctx.fillStyle = 'rgba(30,22,40,0.25)';
       ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, view.bgY1 - view.bgY0);
-      // sweet-spot ring (static)
       ctx.strokeStyle = 'rgba(255,220,110,0.9)';
       ctx.lineWidth = 3;
       ctx.setLineDash([6, 5]);
-      ctx.beginPath(); ctx.arc(fx, cy, 34, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(f.x, cy, 34, 0, TAU); ctx.stroke();
       ctx.setLineDash([]);
-      // shrinking ring — the green cue LEADS the catch window (reaction time)
       const inSweet = c.ringR <= 56;
       ctx.strokeStyle = inSweet ? '#7dff8a' : '#ffffff';
       ctx.lineWidth = inSweet ? 6 : 4;
-      ctx.beginPath(); ctx.arc(fx, cy, c.ringR, 0, TAU); ctx.stroke();
-      // orb floats above
-      ctx.drawImage(S.orb, fx - 12, cy - 12, 24, 24);
+      ctx.beginPath(); ctx.arc(f.x, cy, c.ringR, 0, TAU); ctx.stroke();
+      ctx.drawImage(S.orb, f.x - 12, cy - 12, 24, 24);
       ctx.font = '800 17px sans-serif';
       ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = '#33272e';
       const hint = inSweet ? 'TAP NOW! (anywhere)' : 'wait for it…';
-      ctx.strokeText(hint, fx, cy + 74);
+      ctx.strokeText(hint, f.x, cy + 74);
       ctx.fillStyle = inSweet ? '#7dff8a' : '#fff';
-      ctx.fillText(hint, fx, cy + 74);
+      ctx.fillText(hint, f.x, cy + 74);
     }
   }
 
   drawFX(ctx);
   ctx.restore();
 
-  // full-screen flash (screen space, unshaken)
+  // door transition fade (screen space, unshaken)
+  if (w.transitionT > 0) {
+    ctx.fillStyle = `rgba(30,22,40,${1 - w.transitionT / 0.55})`;
+    ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, view.bgY1 - view.bgY0);
+  }
+
   if (FX.flash > 0) {
     ctx.fillStyle = `rgba(${FX.flashColor},${FX.flash})`;
     ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, view.bgY1 - view.bgY0);

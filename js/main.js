@@ -100,8 +100,10 @@ function handleEvents() {
         burst(ev.x - world.camX, ev.y, 6, { color: '#ffffff', speed: 120 });
         break;
       case 'land': burst(ev.x - world.camX, ev.y, 5, { color: '#c3e88f', speed: 90, grav: 200 }); break;
-      case 'walk_on': sfx.hop(); break;
-      case 'walk_off': break;
+      case 'room_clear': sfx.pickup(); break;
+      case 'door': sfx.dash(); break;
+      case 'rest': sfx.levelup(); break;
+      case 'room': break;
       case 'nice_dodge':
         sfx.bounce();
         floatText(ev.x - world.camX, ev.y, 'Nice dodge! +bond', { color: '#7dff8a', size: 16 });
@@ -170,12 +172,12 @@ function handleEvents() {
 }
 
 // ---------- learn-by-doing coach (first runs only; one hint at a time) ----------
-const TUT_KEY = 'cutefight_tut_v2';
+const TUT_KEY = 'cutefight_tut_v3';
 const tutSteps = [
-  { text: 'TAP the screen — off you go!' },
-  { text: 'A wild one! Lift your thumb — Cinder fights by himself' },
-  { text: '“!” means incoming — touch & DRAG away to dodge!' },
-  { text: 'Dazed! Hold the screen to calm Cinder, get close, throw!' },
+  { text: '👆 Touch & DRAG anywhere to move' },
+  { text: 'Lift your thumb — Cinder fights by himself!' },
+  { text: '“!” means incoming — DRAG away to dodge!' },
+  { text: 'Dazed! Hold to calm Cinder, get close, throw!' },
 ];
 let tutStep = localStorage.getItem(TUT_KEY) ? -1 : 0;
 let tutWalk = 0;
@@ -193,7 +195,7 @@ function tutAdvance() {
 function tutUpdate(dt, input) {
   if (tutStep < 0) return;
   if (tutStep === 0) {
-    if (world.walking) { tutWalk += dt; if (tutWalk > 0.5) tutAdvance(); }
+    if (input.moveX !== 0 || input.moveY !== 0) { tutWalk += dt; if (tutWalk > 0.6) tutAdvance(); }
   } else if (tutStep === 1) {
     if (world.events.some((e) => e.t === 'swing')) tutAdvance();
   } else if (tutStep === 2) {

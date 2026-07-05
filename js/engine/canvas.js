@@ -1,8 +1,8 @@
-// DPR-aware LANDSCAPE canvas (Cute Fight is a two-thumb side-scroller, played 16:9).
+// DPR-aware PORTRAIT canvas (Cute Fight v3 is an Archero-style one-thumb arena game).
 // Fixed virtual world (WORLD_W x WORLD_H), letterboxed/scaled to fill the screen.
 // All gameplay is in world coordinates; we map pointer -> world.
-export const WORLD_W = 960;
-export const WORLD_H = 540;
+export const WORLD_W = 540;
+export const WORLD_H = 960;
 
 export class CanvasView {
   constructor(canvas) {
