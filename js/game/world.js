@@ -137,7 +137,9 @@ function stepPlayer(w, dt, input) {
     w.events.push({ t: 'hop', x: p.x, y: p.y });
   }
 
-  // charging heavy (hold) — slows walk while charging
+  // charging heavy (hold) — slows walk while charging. The charge value is read on the
+  // SAME step the release arrives, so stash it before resetting.
+  const releaseCharge = p.chargeT;
   if (input.charging && p.state !== 'atk') { p.chargeT += dt; p.vx *= 0.4; }
   else if (!input.charging) p.chargeT = 0;
 
@@ -150,7 +152,7 @@ function stepPlayer(w, dt, input) {
       p.state = 'atk'; p.atkKind = 'launcher'; p.atkT = 0.26;
       w.events.push({ t: 'swing', big: true });
       tryHit(w, 'launcher');
-    } else if (input.heavyRelease && p.chargeT >= 0.28) {
+    } else if (input.heavyRelease && releaseCharge >= 0.28) {
       p.state = 'atk'; p.atkKind = 'heavy'; p.atkT = 0.32;
       w.events.push({ t: 'swing', big: true });
       tryHit(w, 'heavy');

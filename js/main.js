@@ -25,8 +25,8 @@ FX.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 function renderHearts() {
   const el = $('hearts');
   let s = '';
-  for (let i = 0; i < world.player.maxHp; i++) s += i < world.player.hp ? '❤️' : '🖤';
-  el.textContent = s;
+  for (let i = 0; i < world.player.maxHp; i++) s += `<span class="${i < world.player.hp ? 'hp' : 'hp empty'}">♥</span>`;
+  el.innerHTML = s;
 }
 function renderCounts() {
   $('orbcount').textContent = world.orbs;
@@ -132,10 +132,10 @@ $('startbtn').addEventListener('pointerup', () => {
 });
 $('mutebtn').addEventListener('pointerup', (e) => {
   const m = setMuted(!isMuted());
-  e.target.textContent = m ? '🔇' : '🔊';
+  e.target.textContent = m ? '×' : '♪';
   localStorage.setItem('cutefight_muted', m ? '1' : '0');
 });
-if (localStorage.getItem('cutefight_muted') === '1') { setMuted(true); $('mutebtn').textContent = '🔇'; }
+if (localStorage.getItem('cutefight_muted') === '1') { setMuted(true); $('mutebtn').textContent = '×'; }
 
 renderHearts(); renderCounts();
 loop.start();
@@ -148,7 +148,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // debug/test hooks
 window.__cf = {
   get world() { return world; },
-  controls, view, errors,
+  controls, view, errors, loop, FX,
   start() { $('startbtn').dispatchEvent(new Event('pointerup')); },
   reset() { world = createWorld(); renderHearts(); renderCounts(); },
 };

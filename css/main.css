@@ -82,7 +82,12 @@ canvas#game {
   pointer-events: none;
   font-weight: 800;
 }
-#hearts { font-size: 18px; text-shadow: 0 2px 0 rgba(51,39,46,0.35); letter-spacing: 2px; }
+#hearts { font-size: 22px; letter-spacing: 3px; }
+#hearts .hp { color: #ff5a6a; text-shadow: 0 2px 0 rgba(51,39,46,0.4); }
+#hearts .hp.empty { color: rgba(51, 39, 46, 0.35); }
+.ic { display: inline-block; width: 13px; height: 13px; border-radius: 50%; vertical-align: -1px; }
+.ic-orb { background: linear-gradient(#ffe08a, #f2b134); border: 2px solid #33272e; }
+.ic-dex { background: #8fd06a; border: 2px solid #33272e; border-radius: 3px; }
 #stats {
   display: flex;
   gap: 10px;

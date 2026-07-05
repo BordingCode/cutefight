@@ -6,7 +6,7 @@ import { GROUND_Y, DAZE_CATCH } from './world.js';
 import { FX, drawFX } from '../engine/fx.js';
 import { TAU } from '../engine/vec.js';
 
-const SCALE = 3;            // 24px art -> 72px on the 960x540 world
+const SCALE = 4;            // 24px art -> 96px on the 960x540 world (chunky, Smash-scale)
 const SPR = 24 * SCALE;
 
 function pickFrame(frames, animT, rate = 0.28) {
@@ -88,16 +88,6 @@ export function draw(view, w, S) {
     const sx = tx - w.camX;
     ctx.drawImage(S.tiles.grass, sx, gy, T, T);
     for (let ty = gy + T; ty < WORLD_H; ty += T) ctx.drawImage(S.tiles.soil, sx, ty, T, T);
-  }
-
-  // --- combat zone walls hint (soft vignette edges when engaged) ---
-  if (w.engaged) {
-    const eg = ctx.createLinearGradient(0, 0, 40, 0);
-    eg.addColorStop(0, 'rgba(60,40,80,0.25)'); eg.addColorStop(1, 'rgba(60,40,80,0)');
-    ctx.fillStyle = eg; ctx.fillRect(0, 0, 40, WORLD_H);
-    ctx.save(); ctx.translate(WORLD_W, 0); ctx.scale(-1, 1);
-    ctx.fillStyle = eg; ctx.fillRect(0, 0, 40, WORLD_H);
-    ctx.restore();
   }
 
   // --- foe ---
