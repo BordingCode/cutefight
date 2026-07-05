@@ -110,3 +110,14 @@ New repo `~/cc/cutefight` under BordingCode, Pages from main. Add to Bording Hub
 
 ## KB debt (write at build time)
 New docs for `~/cc/gamedev-kb`: touch-brawler/Smash-feel playbook (research already done, incl. sources + "hitpause ≤120ms in action-cozy, reduce-motion no-ops it" rule reconciliation); pixel-art text-grid sprite pipeline; skill-based timing-ring catch pattern; daze-meter-as-inverted-Smash-percent; placed-effects-persist-across-swap.
+
+---
+
+## Combat grammar v2 (2026-07-05, after Mathias's phone tests)
+
+Virtual joystick + button-array proved awkward for the target (casual, one-thumb) player — matching the research verdict (Grimvalor/Brawlhalla-class controls need a gamepad; Monster Hunter Now/Archero-class grammars are what succeed casually). Restructured to **steer-only (Archero grammar)**:
+
+- **Thumb down = steer / rein Cinder in (no attacks). Thumb up = Cinder auto-fights** (approach + cadence chain light,light,combo,LAUNCHER + air juggles). Journey = auto-walk ribbon, tap = go/stop.
+- Dodging = drag away from the telegraph; a clean dodge grants +20 bond gauge ("nice dodge").
+- Don't-overkill now reads as *calming your monster*: hold the screen to stop the assault, walk close, throw the orb.
+- Attack/jump buttons deleted; only context buttons remain (ability flame, catch orb). Per-monster "verbs" for M1 = each monster's auto-attack PATTERN + its signature ability button (data-driven per species).

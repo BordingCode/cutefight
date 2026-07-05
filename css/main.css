@@ -23,8 +23,8 @@ canvas#game {
 /* ---------- touch zones & buttons ---------- */
 #padzone {
   position: fixed;
-  left: 0; top: 0;
-  width: 46%; height: 100svh;
+  inset: 0;
+  height: 100svh;
   z-index: 5;
 }
 .actionbtn {
@@ -43,22 +43,10 @@ canvas#game {
   touch-action: none;
 }
 .actionbtn:active, .actionbtn.pressed { transform: translateY(3px); box-shadow: 0 1px 0 rgba(51,39,46,0.45); }
-#atkbtn {
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(20px, env(safe-area-inset-bottom));
-  width: 96px; height: 96px;
-  font-size: 34px;
-}
-#atkbtn small { font-size: 9px; font-weight: 700; opacity: 0.65; letter-spacing: 0.4px; }
-#jumpbtn {
-  right: max(132px, calc(env(safe-area-inset-right) + 114px));
-  bottom: max(20px, env(safe-area-inset-bottom));
-  width: 74px; height: 74px;
-}
 #abilitybtn {
-  right: max(148px, calc(env(safe-area-inset-right) + 130px));
-  bottom: 112px;
-  width: 62px; height: 62px;
+  right: max(116px, calc(env(safe-area-inset-right) + 98px));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 72px; height: 72px;
   opacity: 0.45;
   filter: grayscale(0.9);
   transition: opacity 0.2s, filter 0.2s;
@@ -85,9 +73,9 @@ canvas#game {
   transition: width 0.3s;
 }
 #catchbtn {
-  right: max(34px, env(safe-area-inset-right));
-  bottom: 136px;
-  width: 74px; height: 74px;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  width: 84px; height: 84px;
   font-size: 26px;
   background: linear-gradient(#ffe08a, #f2b134);
   opacity: 0;

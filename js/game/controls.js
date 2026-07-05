@@ -1,97 +1,41 @@
-// Touch grammar (research-backed): LEFT half = floating move pad (slide to walk,
-// flick UP also hops). RIGHT = JUMP button + one big attack button — tap = light,
-// hold&release = heavy, slide up off it = launcher. A context CATCH button appears
-// only when a foe is dazed. Keyboard fallback for desktop/testing: A/D or arrows move,
-// Space hop, J light, K hold = heavy, W or L launcher, E catch/ring-tap.
+// One-thumb grammar (Archero-style): the thumb only STEERS. Touch anywhere and drag
+// = move your monster (and hold it back from attacking). Thumb up = the monster
+// fights for itself. Quick tap = start/stop walking on the journey. Context buttons
+// (ability flame, catch orb) are the only buttons. During a catch, ANY tap counts
+// as the ring tap. Keyboard fallback for testing: A/D or arrows steer, S = hold
+// still (reins), Space = journey tap, F = ability, E = catch/ring.
 export class Controls {
-  constructor(padZone, atkBtn, catchBtn, jumpBtn) {
-    this.moveX = 0;
-    this._hop = false; this._light = false; this._heavyRelease = false;
-    this._launcher = false; this._catch = false; this._ringTap = false;
-    this.charging = false;
+  constructor(padZone, catchBtn) {
+    this._tap = false; this._ability = false; this._catch = false; this._ringTap = false;
 
-    // ---- floating pad (left) ----
-    this.pad = { id: -1, ax: 0, ay: 0, x: 0, y: 0, lastY: 0, lastT: 0, hopLock: false };
+    // ---- the pad: full-screen steer surface ----
+    this.pad = { id: -1, ax: 0, ay: 0, x: 0, y: 0, t0: 0, moved: 0 };
     padZone.addEventListener('pointerdown', (e) => {
       if (this.pad.id !== -1) return;
       this.pad.id = e.pointerId;
       this.pad.ax = e.clientX; this.pad.ay = e.clientY;
       this.pad.x = e.clientX; this.pad.y = e.clientY;
-      this.pad.lastY = e.clientY; this.pad.lastT = performance.now();
-      this.pad.hopLock = false;
+      this.pad.t0 = performance.now();
+      this.pad.moved = 0;
       try { padZone.setPointerCapture(e.pointerId); } catch (_) {}
-      this.padActive = true;
-      this.padAX = e.clientX; this.padAY = e.clientY;
       e.preventDefault();
     });
     padZone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== this.pad.id) return;
-      const now = performance.now();
-      const dt = Math.max(1, now - this.pad.lastT);
-      const vy = (e.clientY - this.pad.lastY) / dt * 1000; // px/s
-      this.pad.lastY = e.clientY; this.pad.lastT = now;
       this.pad.x = e.clientX; this.pad.y = e.clientY;
-      // flick up = hop (velocity gate, re-armed when finger comes back down)
-      if (vy < -650 && !this.pad.hopLock) { this._hop = true; this.pad.hopLock = true; }
-      if (vy > 150) this.pad.hopLock = false;
+      this.pad.moved = Math.max(this.pad.moved, Math.hypot(e.clientX - this.pad.ax, e.clientY - this.pad.ay));
       e.preventDefault();
     });
     const padEnd = (e) => {
       if (e.pointerId !== this.pad.id) return;
+      // a short, still press = a tap (journey start/stop)
+      if (performance.now() - this.pad.t0 < 220 && this.pad.moved < 12) this._tap = true;
       this.pad.id = -1;
-      this.padActive = false;
     };
     padZone.addEventListener('pointerup', padEnd);
     padZone.addEventListener('pointercancel', padEnd);
 
-    // ---- attack button (right) ----
-    this.atk = { id: -1, t0: 0, y0: 0, launcherFired: false };
-    atkBtn.addEventListener('pointerdown', (e) => {
-      if (this.atk.id !== -1) return;
-      this.atk.id = e.pointerId;
-      this.atk.t0 = performance.now();
-      this.atk.y0 = e.clientY;
-      this.atk.launcherFired = false;
-      try { atkBtn.setPointerCapture(e.pointerId); } catch (_) {}
-      atkBtn.classList.add('pressed');
-      e.preventDefault();
-    });
-    atkBtn.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== this.atk.id || this.atk.launcherFired) return;
-      if (this.atk.y0 - e.clientY > 42) {
-        this._launcher = true;
-        this._ringTap = true; // a swipe during the ring still counts as the tap
-        this.atk.launcherFired = true;
-        this.charging = false;
-        atkBtn.classList.remove('pressed');
-      }
-    });
-    const atkEnd = (e) => {
-      if (e.pointerId !== this.atk.id) return;
-      const held = performance.now() - this.atk.t0;
-      if (!this.atk.launcherFired) {
-        if (held < 240) { this._light = true; this._ringTap = true; }
-        else this._heavyRelease = true;
-      }
-      this.atk.id = -1;
-      this.charging = false;
-      atkBtn.classList.remove('pressed');
-    };
-    atkBtn.addEventListener('pointerup', atkEnd);
-    atkBtn.addEventListener('pointercancel', atkEnd);
-
-    // ---- jump button ----
-    jumpBtn.addEventListener('pointerdown', (e) => {
-      this._hop = true;
-      jumpBtn.classList.add('pressed');
-      e.preventDefault();
-    });
-    const jumpEnd = () => jumpBtn.classList.remove('pressed');
-    jumpBtn.addEventListener('pointerup', jumpEnd);
-    jumpBtn.addEventListener('pointercancel', jumpEnd);
-
     // ---- ability button (Ember Dash, needs a full bond gauge) ----
-    this._ability = false;
     const abilityBtn = document.getElementById('abilitybtn');
     if (abilityBtn) {
       abilityBtn.addEventListener('pointerdown', (e) => {
@@ -107,56 +51,44 @@ export class Controls {
       e.preventDefault();
     });
 
-    // ---- ring tap: during a catch, ANY tap anywhere counts (the ring is on the
-    // playfield, so people tap the ring itself — of course they do) ----
+    // ---- ring tap: during a catch, ANY tap anywhere counts ----
     window.addEventListener('pointerdown', () => { this._ringTap = true; }, { capture: true });
 
     // ---- keyboard fallback ----
     this.keys = {};
     window.addEventListener('keydown', (e) => {
-      if (e.repeat) { this.keys[e.code] = true; return; }
       this.keys[e.code] = true;
-      if (e.code === 'Space' || e.code === 'ArrowUp') this._hop = true;
-      if (e.code === 'KeyJ') { this._light = true; this._ringTap = true; }
-      if (e.code === 'KeyW' || e.code === 'KeyL') { this._launcher = true; this._ringTap = true; }
-      if (e.code === 'KeyE') { this._catch = true; this._ringTap = true; }
+      if (e.repeat) return;
+      if (e.code === 'Space') { this._tap = true; this._ringTap = true; }
       if (e.code === 'KeyF') this._ability = true;
+      if (e.code === 'KeyE') { this._catch = true; this._ringTap = true; }
     });
-    window.addEventListener('keyup', (e) => {
-      this.keys[e.code] = false;
-      if (e.code === 'KeyK') this._heavyRelease = true;
-    });
+    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
   }
 
   // one poll per sim step; edge flags are consumed
   poll() {
-    // pad: horizontal offset from anchor -> -1..1
     let mx = 0;
+    let dragging = false;
     if (this.pad.id !== -1) {
+      dragging = true;                          // any touch = holding the reins
       const dx = this.pad.x - this.pad.ax;
       mx = Math.max(-1, Math.min(1, dx / 52));
-      if (Math.abs(mx) < 0.12) mx = 0; // deadzone
+      if (Math.abs(mx) < 0.12) mx = 0;          // deadzone: touch-and-hold = stand still
     }
-    if (this.keys['KeyA'] || this.keys['ArrowLeft']) mx = -1;
-    if (this.keys['KeyD'] || this.keys['ArrowRight']) mx = 1;
-
-    // heavy charging: attack held past the tap window, or K held
-    const heldMs = this.atk.id !== -1 ? performance.now() - this.atk.t0 : 0;
-    this.charging = (this.atk.id !== -1 && !this.atk.launcherFired && heldMs >= 240) || !!this.keys['KeyK'];
+    if (this.keys['KeyA'] || this.keys['ArrowLeft']) { mx = -1; dragging = true; }
+    if (this.keys['KeyD'] || this.keys['ArrowRight']) { mx = 1; dragging = true; }
+    if (this.keys['KeyS']) dragging = true;      // hold still
 
     const out = {
       moveX: mx,
-      hop: this._hop,
-      light: this._light,
-      charging: this.charging,
-      heavyRelease: this._heavyRelease,
-      launcher: this._launcher,
+      dragging,
+      tapped: this._tap,
+      ability: this._ability,
       catchPress: this._catch,
       ringTap: this._ringTap,
-      ability: this._ability,
     };
-    this._hop = this._light = this._heavyRelease = this._launcher = this._catch = this._ringTap = false;
-    this._ability = false;
+    this._tap = this._ability = this._catch = this._ringTap = false;
     return out;
   }
 }

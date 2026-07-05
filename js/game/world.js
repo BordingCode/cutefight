@@ -46,6 +46,7 @@ export function createWorld() {
     zoneL: 0, zoneR: 0,        // combat zone wall x positions
     orbs: 5,
     caught: 0,
+    walking: false,            // journey auto-walk (toggled by a tap)
     xp: 0, level: 1,
     pickups: [],               // orbs dropped on the path
     spawnCount: 0,
@@ -61,6 +62,7 @@ export function createWorld() {
       chargeT: 0, charging: false,
       gauge: 0,                // bond gauge: fill by landing hits, spend on Ember Dash
       dashT: 0, dashHit: false,
+      autoT: 0, chain: 0,      // auto-fight cadence + attack chain position
       iframes: 0, animT: 0,
     },
 
@@ -211,25 +213,8 @@ function stepPlayer(w, dt, input) {
     }
   }
 
-  // movement (locked briefly during ground attacks)
-  const lockMove = p.state === 'atk' && p.onGround;
-  const mx = lockMove ? 0 : input.moveX;
-  p.vx = mx * MOVE_SPD;
-  if (mx !== 0) p.facing = sign(mx);
-
-  if (input.hop && p.onGround && p.state !== 'atk') {
-    p.vy = HOP_VY; p.onGround = false;
-    w.events.push({ t: 'hop', x: p.x, y: p.y });
-  }
-
-  // charging heavy (hold) — slows walk while charging. The charge value is read on the
-  // SAME step the release arrives, so stash it before resetting.
-  const releaseCharge = p.chargeT;
-  if (input.charging && p.state !== 'atk') { p.chargeT += dt; p.vx *= 0.4; }
-  else if (!input.charging) p.chargeT = 0;
-
   // EMBER DASH — the signature verb, earned by fighting well. It may interrupt
-  // any attack (a special that ignores your button press feels broken).
+  // anything (a special that ignores your button press feels broken).
   if (input.ability && p.gauge >= 100) {
     p.gauge = 0;
     p.dashT = 0.2;
@@ -239,30 +224,54 @@ function stepPlayer(w, dt, input) {
     return;
   }
 
-  // attacks
+  // ---- ONE-THUMB GRAMMAR: thumb down = you steer (and rein Cinder in);
+  // ---- thumb up = Cinder fights for himself / walks the journey.
+  if (input.tapped && !w.engaged) {
+    w.walking = !w.walking;
+    w.events.push({ t: w.walking ? 'walk_on' : 'walk_off' });
+  }
+
+  if (input.dragging) {
+    // steering: move (or hold still) — Cinder never attacks while held
+    p.vx = input.moveX * MOVE_SPD;
+    if (input.moveX !== 0) p.facing = sign(input.moveX);
+    p.steered = (p.steered || 0) + Math.abs(p.vx) * dt;
+    p.autoT = Math.max(p.autoT || 0, 0.22); // brief pause before auto-fight resumes
+  } else if (!w.engaged) {
+    // journey: auto-walk ribbon
+    p.vx = w.walking ? 185 : 0;
+    if (p.vx) p.facing = 1;
+  } else {
+    // combat, thumb up: auto-fight — approach, then attack on a cadence.
+    // Chain cycles light,light,combo,LAUNCHER; airborne foes get quick juggles.
+    p.vx = 0;
+    const f = w.foe;
+    if (f) {
+      const dx = f.x - p.x;
+      p.facing = sign(dx) || p.facing;
+      const range = f.onGround ? 82 : 66;
+      p.autoT = (p.autoT || 0) - dt;
+      if (Math.abs(dx) > range) {
+        p.vx = sign(dx) * 165;
+      } else if (p.autoT <= 0 && p.state !== 'atk') {
+        let kind;
+        if (!f.onGround) { kind = 'air'; p.autoT = 0.3; }
+        else {
+          p.chain = ((p.chain || 0) + 1) % 4;
+          kind = ['light', 'light', 'combo', 'launcher'][p.chain];
+          p.autoT = 0.38;
+        }
+        p.state = 'atk'; p.atkKind = kind; p.atkT = 0.18;
+        w.events.push({ t: 'swing', big: kind === 'combo' || kind === 'launcher' });
+        tryHit(w, kind);
+      }
+    }
+  }
+
+  // attack animation timer
   if (p.state === 'atk') {
     p.atkT -= dt;
     if (p.atkT <= 0) p.state = p.onGround ? 'idle' : 'air';
-  } else {
-    if (input.launcher) {
-      p.state = 'atk'; p.atkKind = 'launcher'; p.atkT = 0.26;
-      w.events.push({ t: 'swing', big: true });
-      tryHit(w, 'launcher');
-    } else if (input.heavyRelease && releaseCharge >= 0.28) {
-      p.state = 'atk'; p.atkKind = 'heavy'; p.atkT = 0.32;
-      w.events.push({ t: 'swing', big: true });
-      tryHit(w, 'heavy');
-      p.chargeT = 0;
-    } else if (input.light) {
-      const airborne = !p.onGround;
-      p.combo = p.comboT > 0 ? p.combo + 1 : 1;
-      p.comboT = 0.9;
-      const kind = airborne ? 'air' : (p.combo >= 3 ? 'combo' : 'light');
-      if (p.combo >= 3) p.combo = 0;
-      p.state = 'atk'; p.atkKind = kind; p.atkT = airborne ? 0.2 : 0.18;
-      w.events.push({ t: 'swing', big: false });
-      tryHit(w, kind);
-    }
   }
 
   // physics
@@ -345,6 +354,7 @@ function stepFoe(w, dt) {
     if (Math.abs(dx) > 120) f.x += sign(dx) * spec.walk * dt;
     else if (f.timer <= 0) {
       f.state = 'tell'; f.timer = spec.tell;
+      f.tellPX = p.x; f.lungeHit = false;   // for the nice-dodge bonus
       w.events.push({ t: 'tell', x: f.x, y: f.y - 62 });
     }
   } else if (f.state === 'tell') {
@@ -360,6 +370,7 @@ function stepFoe(w, dt) {
     if (w.engaged) f.x = clamp(f.x, w.zoneL + 20, w.zoneR - 20);
     // hit the player?
     if (p.iframes <= 0 && Math.abs(f.x - p.x) < 42 && Math.abs(f.y - p.y) < 50) {
+      f.lungeHit = true;
       p.hp -= 1;
       p.iframes = 1.1;
       p.vx = sign(p.x - f.x) * 300;
@@ -374,6 +385,12 @@ function stepFoe(w, dt) {
       }
     }
     if (f.timer <= 0) {
+      // dodged it by steering away? reward the read with bond gauge
+      if (!f.lungeHit && Math.abs(p.x - (f.tellPX ?? p.x)) > 60 && p.gauge < 100) {
+        p.gauge = clamp(p.gauge + 20, 0, 100);
+        w.events.push({ t: 'nice_dodge', x: p.x, y: p.y - 70 });
+        if (p.gauge >= 100) w.events.push({ t: 'gauge_ready' });
+      }
       f.vx = 0;
       if (spec.skittish) {
         // hops back out of reach after striking — chase it or bait it

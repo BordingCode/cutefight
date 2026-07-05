@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('game');
 const view = new CanvasView(canvas);
 const S = buildSprites();
-const controls = new Controls($('padzone'), $('atkbtn'), $('catchbtn'), $('jumpbtn'));
+const controls = new Controls($('padzone'), $('catchbtn'));
 
 let world = createWorld();
 let started = false;
@@ -100,7 +100,12 @@ function handleEvents() {
         burst(ev.x - world.camX, ev.y, 6, { color: '#ffffff', speed: 120 });
         break;
       case 'land': burst(ev.x - world.camX, ev.y, 5, { color: '#c3e88f', speed: 90, grav: 200 }); break;
-      case 'hop': sfx.hop(); break;
+      case 'walk_on': sfx.hop(); break;
+      case 'walk_off': break;
+      case 'nice_dodge':
+        sfx.bounce();
+        floatText(ev.x - world.camX, ev.y, 'Nice dodge! +bond', { color: '#7dff8a', size: 16 });
+        break;
       case 'tell': sfx.tell(); break;
       case 'lunge': break;
       case 'dazed':
@@ -165,12 +170,12 @@ function handleEvents() {
 }
 
 // ---------- learn-by-doing coach (first runs only; one hint at a time) ----------
-const TUT_KEY = 'cutefight_tut_v1';
+const TUT_KEY = 'cutefight_tut_v2';
 const tutSteps = [
-  { text: '👈 Slide your LEFT thumb to walk' },
-  { text: 'Tap the PAW to attack! It aims for you' },
-  { text: 'Tap ⬆ to JUMP — dodge the “!” pounce!' },
-  { text: 'HOLD the paw = heavy hit · SWIPE it up = launch!' },
+  { text: 'TAP the screen — off you go!' },
+  { text: 'A wild one! Lift your thumb — Cinder fights by himself' },
+  { text: '“!” means incoming — touch & DRAG away to dodge!' },
+  { text: 'Dazed! Hold the screen to calm Cinder, get close, throw!' },
 ];
 let tutStep = localStorage.getItem(TUT_KEY) ? -1 : 0;
 let tutWalk = 0;
@@ -188,14 +193,14 @@ function tutAdvance() {
 function tutUpdate(dt, input) {
   if (tutStep < 0) return;
   if (tutStep === 0) {
-    if (input.moveX !== 0) tutWalk += dt;
-    if (tutWalk > 0.7) tutAdvance();
+    if (world.walking) { tutWalk += dt; if (tutWalk > 0.5) tutAdvance(); }
   } else if (tutStep === 1) {
     if (world.events.some((e) => e.t === 'swing')) tutAdvance();
   } else if (tutStep === 2) {
-    if (world.events.some((e) => e.t === 'hop')) tutAdvance();
+    // learned dodging: either pulled off a nice dodge, or reached the daze band anyway
+    if (world.events.some((e) => e.t === 'nice_dodge' || e.t === 'dazed')) tutAdvance();
   } else if (tutStep === 3) {
-    if (world.events.some((e) => e.t === 'launch' || (e.t === 'swing' && e.big))) tutAdvance();
+    if (world.events.some((e) => e.t === 'throw')) tutAdvance();
   }
 }
 
