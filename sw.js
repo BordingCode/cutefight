@@ -1,5 +1,5 @@
 // Cute Fight service worker — network-first, cache fallback. Bump CACHE on EVERY release.
-const CACHE = 'cutefight-v8';
+const CACHE = 'cutefight-v9';
 const SHELL = [
   './',
   'index.html',
@@ -14,8 +14,11 @@ const SHELL = [
   'js/engine/pixels.js',
   'js/data/palette.js',
   'js/data/sprites.js',
+  'js/data/zones.js',
+  'js/data/quests.js',
   'js/game/world.js',
   'js/game/render.js',
+  'js/game/map.js',
   'js/game/controls.js',
   'manifest.json',
   'assets/icons/icon.svg',

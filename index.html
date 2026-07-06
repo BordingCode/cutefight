@@ -6,13 +6,13 @@
 <title>Cute Fight</title>
 <meta name="description" content="A cute monster-catching brawler — fight, daze, and catch wild monsters on your journey to the Summit.">
 <meta name="theme-color" content="#6db9e8">
-<link rel="manifest" href="manifest.json?v=20260706a">
-<link rel="icon" href="assets/icons/icon.svg?v=20260706a" type="image/svg+xml">
-<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260706a">
+<link rel="manifest" href="manifest.json?v=20260706b">
+<link rel="icon" href="assets/icons/icon.svg?v=20260706b" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260706b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/main.css?v=20260706a">
+<link rel="stylesheet" href="css/main.css?v=20260706b">
 <script>
 // hub-stats tracker v2
 (function(){try{var A="cutefight",K="hubdev",d=localStorage.getItem(K);if(!d){d=(self.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+"."+Math.random().toString(36).slice(2));localStorage.setItem(K,d);}var u="https://hub-stats.mathiasjob.workers.dev/hit",b=JSON.stringify({app:A,d:d});if(navigator.sendBeacon){navigator.sendBeacon(u,b);}else{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors"});}}catch(e){}})();
@@ -53,6 +53,7 @@
     <span id="xpbar"><i id="xpfill"></i></span>
     <span><i class="ic ic-orb"></i> <span id="orbcount">5</span></span>
     <span><i class="ic ic-dex"></i> <span id="caughtcount">0</span></span>
+    <button id="mapbtn">🗺️</button>
     <button id="mutebtn">♪</button>
   </div>
 </div>
@@ -83,6 +84,35 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=20260706a"></script>
+<div class="overlay" id="warden">
+  <div class="panel">
+    <button id="qclose" class="closex">×</button>
+    <h2 id="qtitle"></h2>
+    <p id="qtext"></p>
+    <button id="qbtn" class="bigbtn"></button>
+  </div>
+</div>
+
+<div class="overlay" id="sanctuary">
+  <div class="panel panel-tall">
+    <button id="sanclose" class="closex">×</button>
+    <h2>🏛 The Sanctuary</h2>
+    <div id="dexgrid"></div>
+    <p id="dexmsg" class="dexline"></p>
+    <button id="charmbtn" class="bigbtn" style="display:none">Claim the Aurora Charm 🌟</button>
+    <h3 class="sanhead">Your team</h3>
+    <div id="teamrow" class="slotrow"></div>
+    <h3 class="sanhead">Resting here</h3>
+    <div id="reserverow" class="slotrow"></div>
+    <p id="sanhint" class="dim"></p>
+  </div>
+</div>
+
+<div class="overlay" id="mapview">
+  <button id="mapclose" class="closex mapx">×</button>
+  <canvas id="mapcanvas"></canvas>
+</div>
+
+<script type="module" src="js/main.js?v=20260706b"></script>
 </body>
 </html>

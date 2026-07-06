@@ -29,7 +29,10 @@
     }
   }
   for (const [mon, anims] of Object.entries(S)) {
-    if (mon === 'tiles') { show('tiles', [S.tiles.grass, S.tiles.soil]); continue; }
+    if (mon === 'tiles' || mon === 'props') {
+      for (const [name, img] of Object.entries(anims)) show(`${mon}.${name}`, [img]);
+      continue;
+    }
     if (mon === 'orb') { show('orb', [S.orb]); continue; }
     for (const [anim, frames] of Object.entries(anims)) show(`${mon}.${anim}`, frames);
   }
