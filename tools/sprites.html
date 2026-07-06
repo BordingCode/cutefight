@@ -34,7 +34,13 @@
       continue;
     }
     if (mon === 'orb') { show('orb', [S.orb]); continue; }
-    for (const [anim, frames] of Object.entries(anims)) show(`${mon}.${anim}`, frames);
+    for (const [anim, frames] of Object.entries(anims)) {
+      if (anim === 'evo') {
+        for (const [ea, ef] of Object.entries(frames)) show(`${mon}.evo.${ea}`, ef);
+        continue;
+      }
+      show(`${mon}.${anim}`, frames);
+    }
   }
   document.title = 'sprites OK';
 </script>

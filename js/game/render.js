@@ -398,7 +398,9 @@ export function draw(view, w, S) {
       ctx.fillStyle = 'rgba(40,60,35,0.28)';
       ctx.beginPath(); ctx.ellipse(f.x, f.y + 4, 26 * sc * (1 - Math.min(0.5, f.alt / 400)), 8 * sc, 0, 0, TAU); ctx.fill();
 
-      const a = S[f.species];
+      // deep-zone veterans (Lv10+), alphas and grand bosses wear their evolved form
+      const baseA = S[f.species];
+      const a = (f.lvl >= 10 || f.alpha) && baseA.evo ? { ...baseA, ...baseA.evo, atk: null, tell: null } : baseA;
       const tellF = a.tell ? a.tell[0] : (a.atk ? a.atk[0] : a.idle[0]);
       const lungeF = a.lunge ? a.lunge[0] : (a.atk ? a.atk[1] : a.idle[0]);
       let frame;
@@ -452,8 +454,17 @@ export function draw(view, w, S) {
         ctx.fillText('★', f.x, fy - SPR * (f.scale || 1) - 40 + bob2);
       }
 
-      // daze meter — only once a foe is part of the fight (calm reads calm)
+      // daze meter — only once a foe is part of the fight (calm reads calm).
+      // calm foes still whisper their level when you get close: look before you leap
       const showBar = f.aggro || f.daze > 0.5 || f.dazedT > 0 || f.boss;
+      if (!showBar && Math.hypot(f.x - w.player.x, f.y - w.player.y) < 330) {
+        ctx.font = '700 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(51,39,46,0.55)';
+        ctx.strokeText(`Lv ${f.lvl}`, f.x, fy - SPR * sc - 10);
+        ctx.fillStyle = 'rgba(255,243,223,0.75)';
+        ctx.fillText(`Lv ${f.lvl}`, f.x, fy - SPR * sc - 10);
+      }
       if (showBar) {
         const bw = f.boss ? 140 : 76, bh = 9, bx = f.x - bw / 2, by = fy - SPR * sc - 26;
         if (f.boss) {
@@ -505,10 +516,12 @@ export function draw(view, w, S) {
       }
       continue;
     }
-    // player (active team member's art)
+    // player (active team member's art — evolved members show their evolved form)
     const p = it.o;
-    const species = w.team[w.active].species;
-    const a = S[species] || S.cinder;
+    const lead = w.team[w.active];
+    const species = lead.species;
+    const baseA = S[species] || S.cinder;
+    const a = lead.evolved && baseA.evo ? { ...baseA, ...baseA.evo, atk: null } : baseA;
     ctx.fillStyle = 'rgba(40,60,35,0.28)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, 26, 8, 0, 0, TAU); ctx.fill();
 

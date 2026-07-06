@@ -28,6 +28,7 @@ export const ZONES = {
   // ================================================================ VILLAGE
   village: {
     name: 'Emberlight Village', pal: 0, w: 1280, h: 1100, tile: 'path',
+    signText: '“Emberlight Village — rest at the hearth. The meadow lies east.”',
     spawn: { x: 640, y: 760 },
     areas: [
       { name: 'the Hearth', x: 640, y: 580, rx: 260, ry: 220 },
@@ -77,6 +78,7 @@ export const ZONES = {
   // ============================================================ MEADOW REACH
   meadow: {
     name: 'Meadow Reach', pal: 0, w: 3000, h: 2000, tile: 'meadow',
+    signText: '“Meadow Reach — gentle wilds (Lv 1–6). Beware the Night Glade after the orchard.”',
     areas: [
       { name: 'the Hayfields', x: 450, y: 750, rx: 420, ry: 420 },
       { name: 'the Pondshallows', x: 800, y: 1600, rx: 500, ry: 380 },
@@ -151,12 +153,14 @@ export const ZONES = {
       { id: 'bridge', x: 2880, y: 1000, boss: { species: 'sproutle', name: 'Bramble Warden', resist: 3.0, scale: 2, lvl: 5 }, needsQuest: 'q3' },
     ],
     pockets: [
+      // pairs near home, a gustling flock mid-zone, a veteran by the Great Oak
       { x: 500, y: 800, r: 150, species: ['sproutle', 'sproutle', 'cinder'], n: 2, lvl: [1, 2], respawn: 30 },
       { x: 1000, y: 450, r: 160, species: ['sproutle', 'gustling'], n: 2, lvl: [2, 3], respawn: 30 },
-      { x: 1250, y: 1500, r: 170, species: ['gustling', 'voltling', 'sproutle'], n: 3, lvl: [3, 4], respawn: 30 },
-      { x: 2350, y: 750, r: 160, species: ['voltling', 'gustling'], n: 2, lvl: [4, 5], respawn: 35 },
+      { x: 1250, y: 1500, r: 170, species: ['gustling', 'gustling', 'voltling'], n: 3, lvl: [2, 3], respawn: 30 },
+      { x: 2350, y: 750, r: 170, species: ['voltling', 'gustling', 'voltling'], n: 3, lvl: [3, 4], respawn: 35 },
       { x: 1900, y: 1150, r: 150, species: ['cinder', 'sproutle'], n: 2, lvl: [3, 4], respawn: 30 },
       { x: 450, y: 1600, r: 150, species: ['dewdrip', 'sproutle'], n: 2, lvl: [2, 4], respawn: 32 },
+      { x: 1550, y: 1470, r: 130, species: ['cinder'], n: 1, lvl: [6, 6], respawn: 45 },
     ],
     rare: { species: 'glimmoth', x: 2600, y: 1660, lvl: 6, respawn: 180 },
     caches: [
@@ -168,6 +172,7 @@ export const ZONES = {
   // ======================================================= PINEWHISPER FOREST
   forest: {
     name: 'Pinewhisper Forest', pal: 1, w: 3000, h: 2100, tile: 'forest',
+    signText: '“Pinewhisper Forest — quick-tempered wilds (Lv 5–10). Loggers gone. Sorry.”',
     areas: [
       { name: 'the Loggers’ Rest', x: 500, y: 1000, rx: 450, ry: 400 },
       { name: 'the Deep Pines', x: 1500, y: 800, rx: 500, ry: 450 },
@@ -237,12 +242,13 @@ export const ZONES = {
       { id: 'pass', x: 2880, y: 600, boss: { species: 'voltling', name: 'Storm Alpha', resist: 3.6, scale: 2, lvl: 10 }, needsQuest: 'q5' },
     ],
     pockets: [
+      // voltling flocks in the pines, a veteran haunting the Whisper Hollow
       { x: 550, y: 1000, r: 160, species: ['voltling', 'dewdrip'], n: 2, lvl: [5, 6], respawn: 30 },
-      { x: 1200, y: 1050, r: 170, species: ['dewdrip', 'gustling', 'voltling'], n: 3, lvl: [6, 7], respawn: 30 },
-      { x: 1750, y: 1350, r: 160, species: ['voltling', 'voltling', 'dewdrip'], n: 2, lvl: [7, 8], respawn: 30 },
+      { x: 1200, y: 1050, r: 170, species: ['voltling', 'voltling', 'gustling'], n: 3, lvl: [5, 7], respawn: 30 },
+      { x: 1750, y: 1350, r: 160, species: ['voltling', 'voltling', 'dewdrip'], n: 3, lvl: [6, 7], respawn: 30 },
       { x: 2200, y: 1100, r: 160, species: ['dewdrip', 'gustling'], n: 2, lvl: [8, 9], respawn: 35 },
       { x: 1850, y: 700, r: 150, species: ['gustling', 'voltling'], n: 2, lvl: [6, 8], respawn: 32 },
-      { x: 900, y: 1650, r: 150, species: ['sproutle', 'dewdrip'], n: 2, lvl: [6, 7], respawn: 32 },
+      { x: 1100, y: 1720, r: 130, species: ['dewdrip'], n: 1, lvl: [10, 10], respawn: 45 },
     ],
     rare: { species: 'mycelisk', x: 2550, y: 1740, lvl: 9, respawn: 180 },
     caches: [
@@ -254,6 +260,7 @@ export const ZONES = {
   // ========================================================= FROSTPEAK SLOPES
   frost: {
     name: 'Frostpeak Slopes', pal: 2, w: 3000, h: 2100, tile: 'snow',
+    signText: '“Frostpeak Slopes — hardened wilds (Lv 10–14). They hit for TWO hearts. Turn back?”',
     areas: [
       { name: 'the Icefang Lake', x: 2100, y: 500, rx: 500, ry: 380 },
       { name: 'the Crystal Fields', x: 2300, y: 1400, rx: 500, ry: 400 },
@@ -306,11 +313,13 @@ export const ZONES = {
     ],
     gates: [],
     pockets: [
+      // pairs on the slopes, a voltling storm-flock, a veteran below the Old Watch
       { x: 700, y: 900, r: 160, species: ['frostnip', 'dewdrip'], n: 2, lvl: [10, 11], respawn: 32 },
-      { x: 1250, y: 700, r: 170, species: ['frostnip', 'voltling', 'frostnip'], n: 3, lvl: [11, 12], respawn: 32 },
+      { x: 1250, y: 700, r: 170, species: ['voltling', 'voltling', 'frostnip'], n: 3, lvl: [10, 12], respawn: 32 },
       { x: 1900, y: 1250, r: 160, species: ['frostnip', 'frostnip'], n: 2, lvl: [12, 13], respawn: 35 },
       { x: 1000, y: 1750, r: 160, species: ['dewdrip', 'frostnip'], n: 2, lvl: [11, 12], respawn: 35 },
       { x: 2450, y: 950, r: 150, species: ['frostnip', 'voltling'], n: 2, lvl: [12, 13], respawn: 34 },
+      { x: 720, y: 820, r: 130, species: ['frostnip'], n: 1, lvl: [14, 14], respawn: 45 },
     ],
     rare: { species: 'brinemaw', x: 2080, y: 700, lvl: 12, respawn: 180 },
     caches: [
@@ -397,9 +406,11 @@ export const ZONES = {
     ],
     gates: [],
     pockets: [
+      // the moor runs on flocks — and one storm-scarred veteran
       { x: 650, y: 650, r: 160, species: ['voltling', 'gustling', 'cinder'], n: 3, lvl: [14, 15], respawn: 30 },
       { x: 1200, y: 1150, r: 160, species: ['frostnip', 'dewdrip'], n: 2, lvl: [15, 16], respawn: 32 },
       { x: 1950, y: 850, r: 160, species: ['voltling', 'frostnip', 'gustling'], n: 3, lvl: [15, 16], respawn: 32 },
+      { x: 450, y: 1200, r: 130, species: ['cinder'], n: 1, lvl: [16, 16], respawn: 50 },
     ],
     rare: null,
     caches: [{ x: 2250, y: 200, n: 4 }, { x: 200, y: 1450, n: 3 }],

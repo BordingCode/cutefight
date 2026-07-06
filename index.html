@@ -6,13 +6,13 @@
 <title>Cute Fight</title>
 <meta name="description" content="A cute monster-catching brawler — fight, daze, and catch wild monsters on your journey to the Summit.">
 <meta name="theme-color" content="#6db9e8">
-<link rel="manifest" href="manifest.json?v=20260706e">
-<link rel="icon" href="assets/icons/icon.svg?v=20260706e" type="image/svg+xml">
-<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260706e">
+<link rel="manifest" href="manifest.json?v=20260706f">
+<link rel="icon" href="assets/icons/icon.svg?v=20260706f" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260706f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/main.css?v=20260706e">
+<link rel="stylesheet" href="css/main.css?v=20260706f">
 <script>
 // hub-stats tracker v2
 (function(){try{var A="cutefight",K="hubdev",d=localStorage.getItem(K);if(!d){d=(self.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+"."+Math.random().toString(36).slice(2));localStorage.setItem(K,d);}var u="https://hub-stats.mathiasjob.workers.dev/hit",b=JSON.stringify({app:A,d:d});if(navigator.sendBeacon){navigator.sendBeacon(u,b);}else{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors"});}}catch(e){}})();
@@ -108,6 +108,7 @@
     <h2>🏛 The Sanctuary</h2>
     <div id="dexgrid"></div>
     <p id="dexmsg" class="dexline"></p>
+    <p class="dim">Elements: 🔥→🌿→💧→🔥 and ⚡→❄️→🌬️→⚡ (each beats the next)</p>
     <button id="charmbtn" class="bigbtn" style="display:none">Claim the Aurora Charm 🌟</button>
     <h3 class="sanhead">Your team</h3>
     <div id="teamrow" class="slotrow"></div>
@@ -122,6 +123,6 @@
   <canvas id="mapcanvas"></canvas>
 </div>
 
-<script type="module" src="js/main.js?v=20260706e"></script>
+<script type="module" src="js/main.js?v=20260706f"></script>
 </body>
 </html>

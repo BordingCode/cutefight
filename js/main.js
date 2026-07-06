@@ -93,12 +93,13 @@ function renderHearts() {
 }
 
 // mini sprite thumbnails for team strip / starter cards / dex
-function thumb(species, size = 44, silhouette = false) {
+function thumb(species, size = 44, silhouette = false, evolved = false) {
   const c = document.createElement('canvas');
   c.width = size; c.height = size;
   const x = c.getContext('2d');
   x.imageSmoothingEnabled = false;
-  const img = S[species].idle[0].img;
+  const set = S[species];
+  const img = (evolved && set.evo ? set.evo : set).idle[0].img;
   x.drawImage(silhouette ? tint(img, '#4a3a44') : img, 0, 0, size, size);
   return c;
 }
@@ -113,7 +114,7 @@ function renderTeam() {
   world.team.forEach((m, i) => {
     const d = document.createElement('div');
     d.className = 'mate' + (i === world.active ? ' on' : '') + (m.fainted ? ' out' : '');
-    d.appendChild(thumb(m.species));
+    d.appendChild(thumb(m.species, 44, false, m.evolved));
     const bar = document.createElement('i');
     bar.style.width = Math.round((m.hp / m.maxHp) * 100) + '%';
     const barwrap = document.createElement('b');
@@ -346,7 +347,7 @@ function renderSanctuary() {
     cell.className = 'dexcell';
     const caught = (world.dex[sp] || 0) > 0;
     const seen = caught || world.seen[sp];
-    cell.appendChild(thumb(sp, 52, !caught));
+    cell.appendChild(thumb(sp, 52, !caught, !!world.dexEvolved[sp]));
     const nm = document.createElement('span');
     nm.textContent = seen ? SPECIES[sp].name : '???';
     cell.appendChild(nm);
@@ -364,7 +365,7 @@ function renderSanctuary() {
   world.team.forEach((m, i) => {
     const d = document.createElement('button');
     d.className = 'slot' + (i === world.active ? ' lead' : '');
-    d.appendChild(thumb(m.species, 46));
+    d.appendChild(thumb(m.species, 46, false, m.evolved));
     const lv = document.createElement('span');
     lv.textContent = `Lv${m.level}${m.evolved ? '★' : ''}`;
     d.appendChild(lv);
@@ -403,7 +404,7 @@ function renderSanctuary() {
   world.reserve.forEach((m, j) => {
     const d = document.createElement('button');
     d.className = 'slot' + (j === pickedReserve ? ' picked' : '');
-    d.appendChild(thumb(m.species, 46));
+    d.appendChild(thumb(m.species, 46, false, m.evolved));
     const lv = document.createElement('span');
     lv.textContent = `Lv${m.level}${m.evolved ? '★' : ''}`;
     d.appendChild(lv);

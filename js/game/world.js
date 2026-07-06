@@ -248,6 +248,9 @@ function pocketStateFor(w, zoneId) {
   return w.pocketState[zoneId];
 }
 
+// Encounter grammar: solos are VETERANS (over-levelled loners guarding a spot),
+// pairs are the standard grazers, 3-4 are FLOCKS (each one a little frailer —
+// the danger is the swarm, not the individual).
 function spawnPocket(w, pk, i, count) {
   for (let j = 0; j < count; j++) {
     const species = pk.species[(w.spawnCount + j) % pk.species.length];
@@ -255,6 +258,8 @@ function spawnPocket(w, pk, i, count) {
     const oy = ((w.spawnCount * 97 + j * 139) % (pk.r * 1.2)) - pk.r * 0.6;
     const lvl = pk.lvl[0] + ((w.spawnCount + j) % (pk.lvl[1] - pk.lvl[0] + 1));
     const f = mkFoe(w, species, pk.x + ox, pk.y + oy, lvl, { pocketI: i });
+    if (pk.n >= 3) f.resist *= 0.82;            // flock members fall faster
+    if (pk.n === 1) { f.scale = 1.15; f.noticeR = 260; }  // veterans loom
     clampToZone(w, f);
     f.home.x = f.x; f.home.y = f.y;
   }
@@ -409,6 +414,18 @@ function addXp(w, amt, x, y) {
 }
 
 const foeXp = (f, base) => Math.round(base * (1 + (f.lvl - 1) * 0.18));
+
+// xp for a specific member (dupe catches teach your own monster of that species)
+function grantXpTo(w, m, amt) {
+  if (!m || m.level >= LVL_CAP) return;
+  m.xp += amt;
+  while (m.level < LVL_CAP && m.xp >= xpNext(m.level)) {
+    m.xp -= xpNext(m.level);
+    m.level++;
+    m.maxHp = PLAYABLE[m.species].baseHp + Math.floor(m.level / 2);
+    m.hp = m.maxHp;
+  }
+}
 
 function dropPickup(w, x, y) {
   if (w.orbs === 0 || Math.random() < 0.45) {
@@ -977,11 +994,18 @@ function stepInteract(w, input) {
     const d = pdist(p.x, p.y, it.x, it.y);
     if (d < bd) { bd = d; w.nearInteract = it; }
   }
+  // signposts are readable too — they tell you what the land ahead holds
+  for (const o of z.obstacles) {
+    if (o.kind !== 'sign') continue;
+    const d = pdist(p.x, p.y, o.x, o.y);
+    if (d < bd) { bd = d; w.nearInteract = o; }
+  }
   if (w.nearInteract && input.tapped) {
     const it = w.nearInteract;
     if (it.kind === 'campfire') useCampfire(w, it);
     else if (it.kind === 'sanctuary') w.events.push({ t: 'open_sanctuary' });
     else if (it.kind === 'warden') w.events.push({ t: 'open_warden' });
+    else if (it.kind === 'sign') toast(w, z.signText || `${z.name}.`, 4.0);
   }
 }
 
@@ -1314,8 +1338,11 @@ function stepCatch(w, dt, input) {
       toast(w, `Gotcha! ${spec.name} rests at the Sanctuary — visit to swap it in.`, 3.2);
       w.events.push({ t: 'joined', species: f.species });
     } else {
+      // a duplicate: it spars with yours before it leaves — your monster learns
+      const twin = w.team.find((tm) => tm.species === f.species) || w.reserve.find((tm) => tm.species === f.species);
+      grantXpTo(w, twin, foeXp(f, spec.xpCatch));
       w.orbs += 2;
-      toast(w, `Gotcha! ${spec.name} scampers off happy — it left you 2 orbs.`, 3.0);
+      toast(w, `Gotcha! It sparred with your ${spec.name} (+XP), left 2 orbs, and scampered off.`, 3.2);
     }
     dropPickup(w, f.x + 60, f.y);
     foeResolved(w, f);
