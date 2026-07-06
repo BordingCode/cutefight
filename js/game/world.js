@@ -5,8 +5,8 @@
 // Wilds notice you, chase, and leash back home if you flee. Gate guardians open the
 // way between zones (defeat OR befriend). Aurorix waits at the Summit (two endings).
 import { clamp, sign } from '../engine/vec.js';
-import { ZONES, VIEW_W, VIEW_H } from '../data/zones.js';
-import { QUESTS } from '../data/quests.js';
+import { ZONES, VIEW_W, VIEW_H, VISTA } from '../data/zones.js';
+import { QUESTS, HUNTS } from '../data/quests.js';
 
 export const GRAV = 2100;
 const MOVE_SPD = 250;
@@ -125,10 +125,16 @@ export function createWorld() {
     respawn: { zone: 'village', x: ZONES.village.spawn.x, y: ZONES.village.spawn.y },
     pocketState: {},           // zoneId -> {pockets:[{alive,t}], rare:{alive,t}}
 
+    hunt: null,                // {i} — the accepted Warden bounty
+    huntsDone: 0,
+    cacheState: {},            // zoneId -> [{t}] orb-cache respawn clocks
+    areaName: '',              // named sub-area under the player's feet
+
     transitionT: 0, revealT: 0,
     _travel: null,
     _blockMsgT: 0,
     _respawnT: 0,
+    _areaT: 0,
     nearInteract: null,
     colliders: [],
     paused: false,
@@ -185,7 +191,7 @@ function camTargets(w) {
   const z = zoneOf(w), p = w.player;
   return [
     clamp(p.x - VIEW_W / 2, 0, Math.max(0, z.w - VIEW_W)),
-    clamp(p.y - VIEW_H * 0.55, 0, Math.max(0, z.h - VIEW_H)),
+    clamp(p.y - VIEW_H * 0.55, -VISTA, Math.max(-VISTA, z.h - VIEW_H)),
   ];
 }
 function stepCamera(w, dt) {
@@ -217,6 +223,7 @@ function mkFoe(w, species, x, y, lvl, opts = {}) {
     x, y, home: { x, y },
     pocketI: opts.pocketI ?? -1,
     rare: !!opts.rare,
+    alpha: !!opts.alpha,
     aggro: false,
     noticeR: boss ? 260 : spec.ambush ? 150 : spec.skittish ? 200 : 230,
     immuneT: 0,
@@ -283,6 +290,58 @@ function seedZone(w) {
     }
   }
   spawnGateGuardians(w);
+  spawnHuntTarget(w);
+  // orb caches tucked off the beaten path — they refill slowly
+  if (z.caches) {
+    if (!w.cacheState[w.zone]) w.cacheState[w.zone] = z.caches.map(() => ({ t: 0 }));
+    z.caches.forEach((c, i) => {
+      const st = w.cacheState[w.zone][i];
+      if (w.t < st.t) return; // cooldown starts when LOOTED, not when seen
+      for (let j = 0; j < c.n; j++) {
+        w.pickups.push({ x: c.x + (j % 2) * 44 - 22, y: c.y + Math.floor(j / 2) * 40 - 10, cacheI: i });
+      }
+    });
+  }
+}
+
+// ---------- post-ending bounty hunts ----------
+export function currentHunt(w) {
+  return w.hunt ? HUNTS[w.hunt.i % HUNTS.length] : null;
+}
+
+export function acceptHunt(w) {
+  if (!w.ended || w.hunt) return;
+  w.hunt = { i: w.huntsDone % HUNTS.length };
+  if (currentHunt(w).zone === w.zone) spawnHuntTarget(w);
+}
+
+function spawnHuntTarget(w) {
+  const h = currentHunt(w);
+  if (!h || h.zone !== w.zone) return;
+  if (w.foes.some((f) => f.alpha || (f.boss && f.boss.rematch))) return;
+  if (h.rematch) {
+    mkFoe(w, 'frostnip', h.x, h.y, h.lvl, {
+      boss: { species: 'frostnip', name: 'STORM ECHO', resist: 5.0, scale: 2, lvl: h.lvl, legendary: true, rematch: true },
+      gateId: null,
+    });
+  } else {
+    const f = mkFoe(w, h.species, h.x, h.y, h.lvl, { alpha: true });
+    f.name = 'Alpha ' + SPECIES[h.species].name;
+    f.resist *= 2.4;
+    f.scale = 1.4;
+    f.dmg = 2;
+    f.noticeR = 300;
+  }
+}
+
+function huntBounty(w, f) {
+  const h = currentHunt(w);
+  const orbs = h ? h.bounty : 10;
+  w.orbs += orbs;
+  w.huntsDone++;
+  w.hunt = null;
+  w.events.push({ t: 'hunt_done' });
+  toast(w, `Bounty complete! The Warden owes you ${orbs} orbs — collected.`, 3.4);
 }
 
 // pockets refill while you're away from them
@@ -486,6 +545,12 @@ function koFoe(w, f) {
   if (f.boss) {
     addXp(w, foeXp(f, 60), f.x, vy(f, 70));
     w.pickups.push({ x: f.x - 40, y: f.y }, { x: f.x + 40, y: f.y });
+    if (f.boss.rematch) {
+      w.events.push({ t: 'boss_down' });
+      foeResolved(w, f);
+      huntBounty(w, f);
+      return;
+    }
     if (f.boss.legendary) {
       w.ended = 'defeated';
       w.events.push({ t: 'ending', kind: 'defeated' });
@@ -494,6 +559,11 @@ function koFoe(w, f) {
       w.events.push({ t: 'boss_down' });
       if (f.gateId) openGate(w, f.gateId);
     }
+  } else if (f.alpha) {
+    addXp(w, foeXp(f, 40), f.x, vy(f, 70));
+    foeResolved(w, f);
+    huntBounty(w, f);
+    return;
   } else {
     toast(w, 'Too rough… it fainted. Gentler next time!', 3.0);
     addXp(w, foeXp(f, spec.xpKo), f.x, vy(f, 70));
@@ -763,7 +833,9 @@ function stepPlayer(w, dt, input) {
   for (let i = w.pickups.length - 1; i >= 0; i--) {
     if (pdist(w.pickups[i].x, w.pickups[i].y, p.x, p.y) < 52) {
       w.orbs++;
-      w.events.push({ t: 'pickup', x: w.pickups[i].x, y: w.pickups[i].y - 26 });
+      const pk = w.pickups[i];
+      if (pk.cacheI != null && w.cacheState[w.zone]) w.cacheState[w.zone][pk.cacheI].t = w.t + 300;
+      w.events.push({ t: 'pickup', x: pk.x, y: pk.y - 26 });
       w.pickups.splice(i, 1);
     }
   }
@@ -834,7 +906,8 @@ function stepPlayer(w, dt, input) {
   for (const ex of z.exits) {
     if (pdist(p.x, p.y, ex.x, ex.y) < ex.r) { inExit = ex; break; }
   }
-  if (inExit && inExit.gate && !w.gatesOpen.includes(inExit.gate)) {
+  const exitBlocked = inExit && ((inExit.gate && !w.gatesOpen.includes(inExit.gate)) || (inExit.needsEnd && !w.ended));
+  if (exitBlocked) {
     const ex = inExit;
     let ux = p.x - ex.x, uy = p.y - ex.y;
     const len = Math.hypot(ux, uy) || 1;
@@ -843,7 +916,9 @@ function stepPlayer(w, dt, input) {
     clampToZone(w, p);
     if (w._blockMsgT <= 0) {
       w._blockMsgT = 2.8;
-      toast(w, w.gateReady.includes(ex.gate) ? 'The guardian bars the way!' : 'The way is blocked… the Warden may know more.', 2.6);
+      toast(w, ex.needsEnd
+        ? 'The storm beyond is still too wild… settle things at the Ring first.'
+        : w.gateReady.includes(ex.gate) ? 'The guardian bars the way!' : 'The way is blocked… the Warden may know more.', 2.6);
     }
     w._exitT = 0;
   } else {
@@ -876,6 +951,22 @@ function useCampfire(w, it) {
   } else {
     toast(w, 'The fire crackles… your team is rested.', 2.6);
   }
+}
+
+// which named sub-area is under the player's feet (drawn under the zone tag)
+function stepAreas(w, dt) {
+  w._areaT -= dt;
+  if (w._areaT > 0) return;
+  w._areaT = 0.3;
+  const z = zoneOf(w), p = w.player;
+  let name = '';
+  if (z.areas) {
+    for (const a of z.areas) {
+      const dx = (p.x - a.x) / a.rx, dy = (p.y - a.y) / a.ry;
+      if (dx * dx + dy * dy <= 1) { name = a.name; break; }
+    }
+  }
+  w.areaName = name;
 }
 
 function stepInteract(w, input) {
@@ -1198,6 +1289,12 @@ function stepCatch(w, dt, input) {
     w.dex[f.species] = (w.dex[f.species] || 0) + 1;
     w.events.push({ t: 'caught', x: f.x, y: vy(f, 40), species: f.species });
     addXp(w, foeXp(f, spec.xpCatch), f.x, vy(f, 80));
+    if (f.boss && f.boss.rematch) {
+      toast(w, 'The echo settles, soothed. The Ring is quiet again.', 3.4);
+      foeResolved(w, f);
+      huntBounty(w, f);
+      return;
+    }
     if (f.boss && f.boss.legendary) {
       w.ended = 'befriended';
       w.events.push({ t: 'ending', kind: 'befriended' });
@@ -1205,6 +1302,7 @@ function stepCatch(w, dt, input) {
       return;
     }
     if (f.gateId) openGate(w, f.gateId);
+    const wasAlpha = f.alpha;
     const lvl = clamp(f.lvl, 1, LVL_CAP);
     const haveIt = w.team.some((tm) => tm.species === f.species) || w.reserve.some((tm) => tm.species === f.species);
     if (!haveIt && w.team.length < 4) {
@@ -1221,6 +1319,7 @@ function stepCatch(w, dt, input) {
     }
     dropPickup(w, f.x + 60, f.y);
     foeResolved(w, f);
+    if (wasAlpha) huntBounty(w, f);
   };
   const brokeFree = () => {
     f.dazedT = 0; f.daze = 40; f.state = 'wander'; f.aggro = true;
@@ -1352,6 +1451,7 @@ export function step(w, dt, input) {
       }
       stepShots(w, dt);
       stepInteract(w, input);
+      stepAreas(w, dt);
       checkRespawns(w, dt);
 
       if (input.catchPress) {

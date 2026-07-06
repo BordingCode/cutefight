@@ -121,6 +121,8 @@ canvas#game {
   font-size: 16px;
   pointer-events: none;
 }
+.abico { display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.abico canvas { image-rendering: pixelated; display: block; }
 
 /* ---------- HUD ---------- */
 #hud {

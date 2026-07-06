@@ -5,11 +5,12 @@ import { FX, updateFX, addTrauma, hitStop, screenFlash, burst, shockwave, floatT
 import { buildSprites } from './data/sprites.js';
 import { tint } from './engine/pixels.js';
 import { ZONES } from './data/zones.js';
-import { QUESTS, QUEST_EPILOGUE } from './data/quests.js';
+import { QUESTS, QUEST_EPILOGUE, HUNTS } from './data/quests.js';
 import {
   createWorld, step, xpNext, initTeam, mkMember, travelTo,
   acceptQuest, turnInQuest, dexComplete, claimCharm,
-  PLAYABLE, SPECIES, DEX_ORDER,
+  acceptHunt, currentHunt,
+  PLAYABLE, SPECIES, DEX_ORDER, ABILITIES,
 } from './game/world.js';
 import { draw } from './game/render.js';
 import { drawMap } from './game/map.js';
@@ -47,6 +48,7 @@ function saveGame() {
       gatesOpen: world.gatesOpen, gateReady: world.gateReady,
       quests: world.quests, campfiresLit: world.campfiresLit,
       visited: world.visited, respawn: world.respawn,
+      hunt: world.hunt, huntsDone: world.huntsDone,
     }));
   } catch (e) {}
 }
@@ -69,6 +71,8 @@ function loadGame() {
     world.quests = s.quests || { i: 0, accepted: false, objDone: false };
     world.campfiresLit = s.campfiresLit || [];
     world.visited = s.visited || ['village'];
+    world.hunt = s.hunt || null;
+    world.huntsDone = s.huntsDone || 0;
     world.respawn = s.respawn || { zone: 'village', x: ZONES.village.spawn.x, y: ZONES.village.spawn.y };
     const zone = ZONES[s.zone] ? s.zone : 'village';
     travelTo(world, zone, { x: s.x ?? ZONES[zone].spawn?.x ?? 200, y: s.y ?? ZONES[zone].spawn?.y ?? 400 });
@@ -146,8 +150,19 @@ function renderCounts() {
   renderAbilityButtons(m);
 }
 
-// cooldown ability buttons: number while cooling, lock until evolved
-const abHud = { cd1: -1, cd2: -1, locked: null, show: null };
+// pixel icon for an ability key, sized for the round buttons
+function abilityIcon(key, size = 40) {
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const x = c.getContext('2d');
+  x.imageSmoothingEnabled = false;
+  const img = S.icons && S.icons[key];
+  if (img) x.drawImage(img, 0, 0, size, size);
+  return c;
+}
+
+// cooldown ability buttons: unique icon per ability, number while cooling, lock until evolved
+const abHud = { cd1: -1, cd2: -1, locked: null, show: null, species: null };
 function renderAbilityButtons(m) {
   const show = !!m;
   if (show !== abHud.show) {
@@ -156,6 +171,17 @@ function renderAbilityButtons(m) {
     $('ab2btn').style.display = show ? '' : 'none';
   }
   if (!m) return;
+  // swap the icons whenever the lead changes
+  if (m.species !== abHud.species) {
+    abHud.species = m.species;
+    const AB = ABILITIES[m.species];
+    $('ab1ico').replaceChildren(abilityIcon(AB.a1.key));
+    $('ab2ico').replaceChildren(abilityIcon(AB.a2.key));
+    $('sigico').replaceChildren(abilityIcon(PLAYABLE[m.species].sig, 44));
+    $('ab1btn').title = AB.a1.name;
+    $('ab2btn').title = AB.a2.name;
+    $('abilitybtn').title = PLAYABLE[m.species].sigName;
+  }
   const c1 = Math.ceil(m.cd1 || 0), c2 = Math.ceil(m.cd2 || 0);
   if (c1 !== abHud.cd1) {
     abHud.cd1 = c1;
@@ -242,9 +268,26 @@ function openWarden() {
   const q = QUESTS[world.quests.i];
   const btn = $('qbtn');
   if (!q) {
-    $('qtitle').textContent = 'The Warden';
-    $('qtext').textContent = QUEST_EPILOGUE;
-    btn.style.display = 'none';
+    // the quest line is done — after the ending, the Warden posts bounties
+    if (world.ended) {
+      const h = currentHunt(world);
+      if (h) {
+        $('qtitle').textContent = 'Bounty underway';
+        $('qtext').textContent = `“${h.flavor}”\n\n(The ★ on your map marks the spot. Reward: ${h.bounty} orbs.)`;
+        btn.style.display = '';
+        btn.textContent = 'On my way';
+      } else {
+        const next = HUNTS[world.huntsDone % HUNTS.length];
+        $('qtitle').textContent = `Bounty: hunt ${world.huntsDone + 1}`;
+        $('qtext').textContent = `“${next.flavor}”\n\nDefeat it — or befriend it. Reward: ${next.bounty} orbs.`;
+        btn.style.display = '';
+        btn.textContent = 'Take the bounty';
+      }
+    } else {
+      $('qtitle').textContent = 'The Warden';
+      $('qtext').textContent = QUEST_EPILOGUE;
+      btn.style.display = 'none';
+    }
   } else if (!world.quests.accepted) {
     $('qtitle').textContent = `Quest: ${q.title}`;
     $('qtext').textContent = q.give;
@@ -265,7 +308,15 @@ function openWarden() {
 }
 $('qbtn').addEventListener('pointerup', () => {
   const q = QUESTS[world.quests.i];
-  if (!q) { overlayClose('warden'); return; }
+  if (!q) {
+    if (world.ended && !currentHunt(world)) {
+      acceptHunt(world);
+      sfx.pickup();
+      saveGame();
+    }
+    overlayClose('warden');
+    return;
+  }
   if (!world.quests.accepted) {
     acceptQuest(world);
     sfx.pickup();
@@ -435,6 +486,10 @@ function handleEvents() {
         sfx.caught(); screenFlash(0.4, '255,240,190'); saveGame();
         break;
       case 'quest_obj': sfx.gaugeReady(); break;
+      case 'hunt_done':
+        sfx.caught(); screenFlash(0.45, '255,240,190');
+        renderCounts(); saveGame();
+        break;
       case 'seen': break;
       case 'open_sanctuary':
         pickedReserve = -1;

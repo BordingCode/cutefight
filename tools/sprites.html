@@ -29,7 +29,7 @@
     }
   }
   for (const [mon, anims] of Object.entries(S)) {
-    if (mon === 'tiles' || mon === 'props') {
+    if (mon === 'tiles' || mon === 'props' || mon === 'icons') {
       for (const [name, img] of Object.entries(anims)) show(`${mon}.${name}`, [img]);
       continue;
     }

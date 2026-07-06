@@ -3,7 +3,7 @@
 // tiled ground pattern, parallax hills, depth-sorted entities and props.
 import { WORLD_W } from '../engine/canvas.js';
 import { DAZE_CATCH, typeMult, PLAYABLE } from './world.js';
-import { ZONES, HORIZON } from '../data/zones.js';
+import { ZONES } from '../data/zones.js';
 import { FX, drawFX } from '../engine/fx.js';
 import { TAU } from '../engine/vec.js';
 
@@ -17,6 +17,8 @@ const PALS = [
   { skyA: '#6db9e8', skyB: '#c8ecf7', far: '#b6d9a4', mid: '#8cc47e', floor: '#7cbf5f', tufts: ['#8fd06a', '#6fae52', '#93d16c'], edge: '#5f9a4b', sun: 'rgba(255,240,190,0.9)' },
   { skyA: '#7186bd', skyB: '#cdd9ec', far: '#8fa3bd', mid: '#6f89a8', floor: '#79a26b', tufts: ['#8cba7a', '#5f8f57', '#93b06c'], edge: '#54724a', sun: 'rgba(235,235,245,0.65)' },
   { skyA: '#8fb5d8', skyB: '#eef8ff', far: '#cfe4f2', mid: '#aac9e0', floor: '#e6f1f5', tufts: ['#ffffff', '#c9dde8', '#d8e9f0'], edge: '#b3ccd9', sun: 'rgba(255,250,230,0.75)' },
+  // dusk: the storm-washed lands past the Summit — violet twilight, moonlight, fireflies
+  { skyA: '#3f3a66', skyB: '#b493c8', far: '#6f6592', mid: '#57517a', floor: '#5b4650', tufts: ['#a98abf', '#7f9a8f', '#8a7a9f'], edge: '#3f3752', sun: 'rgba(235,228,255,0.85)' },
 ];
 
 function pickFrame(frames, animT, rate = 0.28) {
@@ -52,9 +54,9 @@ function hillBand(baseY, waves, color, h) {
 
 function buildBG(pal, tileKey, S, ctx) {
   const P = PALS[pal];
-  // hills live in the fixed horizon band (HORIZON px tall) and scroll with parallax
-  const far = hillBand(HORIZON * 0.48, [[2, 16, 0], [4, 9, 1.7]], P.far, HORIZON);
-  const mid = hillBand(HORIZON * 0.72, [[3, 12, 0.9], [5, 6, 2.4]], P.mid, HORIZON);
+  // far hills for the northern vista (drawn in world space above y=0)
+  const far = hillBand(72, [[2, 16, 0], [4, 9, 1.7]], P.far, 150);
+  const mid = hillBand(108, [[3, 12, 0.9], [5, 6, 2.4]], P.mid, 150);
   // ground pattern chunk: 4×4 tiles at ×4 scale + deterministic tuft variation
   const chunk = document.createElement('canvas');
   chunk.width = 256; chunk.height = 256;
@@ -73,7 +75,11 @@ function buildBG(pal, tileKey, S, ctx) {
     g.fillRect((i * 53) % 250, (i * 97) % 250, 6, 4);
   }
   g.globalAlpha = 1;
-  BG = { key: pal + ':' + tileKey, P, far, mid, groundPat: ctx.createPattern(chunk, 'repeat'), sky: null, skyKey: '' };
+  // world-space sky gradient for the vista band above the zone's north edge
+  const sky = ctx.createLinearGradient(0, -560, 0, 0);
+  sky.addColorStop(0, P.skyA);
+  sky.addColorStop(1, P.skyB);
+  BG = { key: pal + ':' + tileKey, P, far, mid, sky, groundPat: ctx.createPattern(chunk, 'repeat') };
 }
 
 function drawHazard(ctx, hz, t) {
@@ -177,7 +183,7 @@ function drawProp(ctx, S, kind, x, y, big) {
 }
 
 // worn paths: guide the eye (and the thumb) between the places that matter
-const PATH_COLOR = ['#e8cf9d', '#c9b184', '#dcE8f2'];
+const PATH_COLOR = ['#e8cf9d', '#c9b184', '#dce8f2', '#8a7a9f'];
 function drawPaths(ctx, z) {
   if (!z.paths) return;
   const col = z.pal === 2 ? '#d8e7f0' : PATH_COLOR[z.pal] || PATH_COLOR[0];
@@ -235,7 +241,7 @@ function drawWaters(ctx, z, t) {
 }
 
 // ambient weather: petals / falling leaves / snow, per biome — cheap screen-space drift
-const AMBIENT = { colors: [['#ffd9e8', '#fff0a8'], ['#8fd06a', '#c9ee9a'], ['#ffffff', '#e2f1ff']] };
+const AMBIENT = { colors: [['#ffd9e8', '#fff0a8'], ['#8fd06a', '#c9ee9a'], ['#ffffff', '#e2f1ff'], ['#fff0a8', '#ffd23e']] };
 function drawAmbient(ctx, view, w, pal) {
   const [c1, c2] = AMBIENT.colors[pal] || AMBIENT.colors[0];
   const H = view.bgY1 - view.bgY0;
@@ -248,7 +254,11 @@ function drawAmbient(ctx, view, w, pal) {
     const wob = Math.sin(w.t * 1.8 + i * 1.7) * sway;
     ctx.globalAlpha = 0.5 + (i % 3) * 0.15;
     ctx.fillStyle = i % 2 ? c1 : c2;
-    if (pal === 2) {
+    if (pal === 3) {
+      // fireflies: slow pulsing motes
+      ctx.globalAlpha *= 0.4 + Math.sin(w.t * 2.2 + i * 2.6) * 0.35 + 0.35;
+      ctx.fillRect(x + wob * 0.4, y - (w.t * (speed * 0.7)) % 40, 3, 3);
+    } else if (pal === 2) {
       ctx.fillRect(x + wob, y, 3.5, 3.5);
     } else {
       ctx.save();
@@ -273,52 +283,44 @@ export function draw(view, w, S) {
   ctx.save();
   ctx.translate(FX.shakeX, FX.shakeY);
 
-  // ================= screen-space sky & horizon band =================
-  const skyKey = view.bgY0 + ':' + view.bgY1;
-  if (BG.skyKey !== skyKey) {
-    const g = ctx.createLinearGradient(0, view.bgY0, 0, HORIZON);
-    g.addColorStop(0, P.skyA);
-    g.addColorStop(1, P.skyB);
-    BG.sky = g; BG.skyKey = skyKey;
-  }
-  ctx.fillStyle = BG.sky;
-  ctx.fillRect(view.bgX0, view.bgY0, view.bgX1 - view.bgX0, HORIZON - view.bgY0);
-
-  ctx.fillStyle = P.sun;
-  ctx.beginPath(); ctx.arc(WORLD_W - 110, 52, 26, 0, TAU); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  for (let i = 0; i < 3; i++) {
-    const cx = ((i * 197 + w.t * 8) % (WORLD_W + 160)) - 80;
-    const cy = 26 + (i * 67) % 60;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, 34, 11, 0, 0, TAU);
-    ctx.ellipse(cx + 20, cy - 6, 21, 9, 0, 0, TAU);
-    ctx.fill();
-  }
-
-  // parallax hills scroll with the camera
-  for (const [band, k] of [[BG.far, 0.18], [BG.mid, 0.42]]) {
-    const xOff = -((w.cam.x * k) % WORLD_W);
-    for (let r = -1; r <= 1; r++) {
-      ctx.drawImage(band, xOff + r * WORLD_W, HORIZON - band.height);
-    }
-  }
-
-  // ================= world layer (camera) =================
+  // ================= world layer (camera) — the world fills the screen =================
   ctx.save();
-  // nothing from the world may draw over the sky band
-  ctx.beginPath();
-  ctx.rect(view.bgX0, HORIZON, view.bgX1 - view.bgX0, view.bgY1 - HORIZON);
-  ctx.clip();
-  ctx.translate(-w.cam.x, HORIZON - w.cam.y);
+  ctx.translate(-w.cam.x, -w.cam.y);
 
   // visible world rect (covers letterbox margins too)
   const vx0 = w.cam.x + view.bgX0, vx1 = w.cam.x + view.bgX1;
-  const vy0 = w.cam.y, vy1 = w.cam.y + (view.bgY1 - HORIZON);
+  const vy0 = w.cam.y + view.bgY0, vy1 = w.cam.y + view.bgY1;
 
-  // beyond-the-zone backdrop, then the tiled ground
+  // beyond-the-zone backdrop
   ctx.fillStyle = P.edge;
   ctx.fillRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+
+  // the northern vista: sky, sun, clouds and far hills live ABOVE y=0 in world
+  // space — you only see the horizon when you actually walk up to it
+  if (vy0 < 0) {
+    ctx.fillStyle = BG.sky;
+    ctx.fillRect(vx0, vy0 - 200, vx1 - vx0, Math.min(0, vy1) - vy0 + 200);
+    ctx.fillStyle = P.sun;
+    ctx.beginPath(); ctx.arc(z.w * 0.72, -150, 30, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 3; i++) {
+      const cx = ((i * 397 + w.t * 9) % (z.w + 240)) - 120;
+      const cy = -180 + (i * 47) % 60;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 34, 11, 0, 0, TAU);
+      ctx.ellipse(cx + 20, cy - 6, 21, 9, 0, 0, TAU);
+      ctx.fill();
+    }
+    // far hills, gently parallaxed, feet planted on the zone's north rim
+    for (const [band, k] of [[BG.far, 0.22], [BG.mid, 0.1]]) {
+      const xOff = -((w.cam.x * k) % WORLD_W) + Math.floor((vx0) / WORLD_W) * WORLD_W;
+      for (let r = -1; r <= Math.ceil((vx1 - vx0) / WORLD_W) + 1; r++) {
+        ctx.drawImage(band, xOff + r * WORLD_W, -band.height + 6);
+      }
+    }
+  }
+
+  // the tiled ground
   ctx.fillStyle = BG.groundPat;
   ctx.fillRect(Math.max(0, vx0), Math.max(0, vy0), Math.min(z.w, vx1) - Math.max(0, vx0), Math.min(z.h, vy1) - Math.max(0, vy0));
 
@@ -438,6 +440,16 @@ export function draw(view, w, S) {
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff0a8';
         ctx.fillText('✦', f.x + Math.cos(ang) * 30, fy - SPR - 14 + Math.sin(ang * 1.7) * 6);
+      }
+      // alphas wear the bounty star
+      if (f.alpha) {
+        const bob2 = Math.sin(w.t * 3) * 3;
+        ctx.font = '900 18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 4; ctx.strokeStyle = '#33272e';
+        ctx.strokeText('★', f.x, fy - SPR * (f.scale || 1) - 40 + bob2);
+        ctx.fillStyle = '#ffd23e';
+        ctx.fillText('★', f.x, fy - SPR * (f.scale || 1) - 40 + bob2);
       }
 
       // daze meter — only once a foe is part of the fight (calm reads calm)
@@ -572,7 +584,7 @@ export function draw(view, w, S) {
     } else {
       const cy = fy - 40;
       ctx.fillStyle = 'rgba(30,22,40,0.25)';
-      ctx.fillRect(vx0, vy0 + view.bgY0 - HORIZON, vx1 - vx0, view.bgY1 - view.bgY0);
+      ctx.fillRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
       ctx.strokeStyle = 'rgba(255,220,110,0.9)';
       ctx.lineWidth = 3;
       ctx.setLineDash([6, 5]);
@@ -606,6 +618,13 @@ export function draw(view, w, S) {
   ctx.strokeText(z.name, WORLD_W / 2, tagY);
   ctx.fillStyle = '#fff3df';
   ctx.fillText(z.name, WORLD_W / 2, tagY);
+  if (w.areaName) {
+    ctx.font = '700 12px sans-serif';
+    ctx.lineWidth = 3;
+    ctx.strokeText(w.areaName, WORLD_W / 2, tagY + 17);
+    ctx.fillStyle = 'rgba(255,243,223,0.85)';
+    ctx.fillText(w.areaName, WORLD_W / 2, tagY + 17);
+  }
 
   ctx.restore(); // end shake
 

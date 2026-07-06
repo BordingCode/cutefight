@@ -2,9 +2,9 @@
 // player dot, campfires, boss gates, and the current quest target. Drawn once
 // per open (no animation) onto the #mapcanvas overlay.
 import { ZONES, MAP_LAYOUT, MAP_LINKS } from '../data/zones.js';
-import { QUESTS } from '../data/quests.js';
+import { QUESTS, HUNTS } from '../data/quests.js';
 
-const ZONE_FLOOR = ['#7cbf5f', '#79a26b', '#e6f1f5'];
+const ZONE_FLOOR = ['#7cbf5f', '#79a26b', '#e6f1f5', '#5b4650'];
 const INK = '#33272e';
 
 function rr(ctx, x, y, w, h, r) {
@@ -28,6 +28,11 @@ function mapPt(zoneId, wx, wy) {
 
 // where should the quest marker point?
 function questTarget(w) {
+  // an accepted bounty outranks the finished quest line
+  if (w.hunt) {
+    const h = HUNTS[w.hunt.i % HUNTS.length];
+    if (h) return { zone: h.zone, x: h.x, y: h.y, label: 'the bounty' };
+  }
   const q = QUESTS[w.quests.i];
   if (!q) return null;
   if (!w.quests.accepted || w.quests.objDone) return { zone: 'village', label: 'the Warden' };

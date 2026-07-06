@@ -48,3 +48,16 @@ export const QUESTS = [
 ];
 
 export const QUEST_EPILOGUE = '“The valley owes you a debt it can’t count. Fill the Sanctuary, if you like — every friend caught and grown is one more the storm can’t frighten.”';
+
+// Post-ending bounty hunts: an extra-tough ALPHA wild appears somewhere specific.
+// Defeat it or befriend it — either way the Warden pays. Rotates forever.
+export const HUNTS = [
+  { species: 'voltling', zone: 'meadow', x: 2350, y: 450, lvl: 17, bounty: 10, flavor: 'An alpha Voltling storms the Old Orchard. Bring it peace — or bring it home.' },
+  { species: 'frostnip', zone: 'frost', x: 2300, y: 1500, lvl: 18, bounty: 12, flavor: 'An alpha Frostnip haunts the Crystal Fields, singing to the spire.' },
+  { species: 'gustling', zone: 'stormwrack', x: 700, y: 700, lvl: 18, bounty: 12, flavor: 'An alpha Gustling rides the Shattered Field, tearing up what little grows.' },
+  { rematch: true, zone: 'summit', x: 800, y: 470, lvl: 18, bounty: 16, flavor: 'The storm’s echo gathers again at the Ring. It is not Aurorix — only its memory. Quiet it.' },
+  { species: 'brinemaw', zone: 'frost', x: 2080, y: 700, lvl: 18, bounty: 14, flavor: 'An alpha Brinemaw circles the Icefang hole. The fishers dare not look at the water.' },
+  { species: 'mycelisk', zone: 'forest', x: 2550, y: 1740, lvl: 18, bounty: 14, flavor: 'An alpha Mycelisk overgrows the Fallen Shrine. Its dreams are getting loud.' },
+  { species: 'cinder', zone: 'meadow', x: 500, y: 800, lvl: 17, bounty: 10, flavor: 'An alpha Cinder scorches the Hayfields. The hay objects.' },
+  { species: 'dewdrip', zone: 'stormwrack', x: 1700, y: 1000, lvl: 18, bounty: 12, flavor: 'An alpha Dewdrip floods the Thunder Fens a little more each night.' },
+];
