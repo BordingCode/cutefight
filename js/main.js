@@ -118,7 +118,11 @@ function renderTeam() {
     const lv = document.createElement('u');
     lv.textContent = (m.evolved ? '★' : '') + 'Lv' + m.level;
     d.appendChild(lv);
-    d.addEventListener('pointerdown', (e) => { world.swapReq = i; e.preventDefault(); e.stopPropagation(); });
+    // lineup is locked in the field — the strip is info-only out here
+    d.addEventListener('pointerdown', (e) => {
+      if (i !== world.active) showToast('Choose your lead at the village Sanctuary');
+      e.preventDefault(); e.stopPropagation();
+    });
     el.appendChild(d);
   });
 }
@@ -138,6 +142,36 @@ function renderCounts() {
     hud.gauge = g;
     $('abilitybtn').classList.toggle('ready', g >= 100);
     $('abilitybtn').style.opacity = g >= 100 ? '' : String(0.35 + (g / 100) * 0.4);
+  }
+  renderAbilityButtons(m);
+}
+
+// cooldown ability buttons: number while cooling, lock until evolved
+const abHud = { cd1: -1, cd2: -1, locked: null, show: null };
+function renderAbilityButtons(m) {
+  const show = !!m;
+  if (show !== abHud.show) {
+    abHud.show = show;
+    $('ab1btn').style.display = show ? '' : 'none';
+    $('ab2btn').style.display = show ? '' : 'none';
+  }
+  if (!m) return;
+  const c1 = Math.ceil(m.cd1 || 0), c2 = Math.ceil(m.cd2 || 0);
+  if (c1 !== abHud.cd1) {
+    abHud.cd1 = c1;
+    $('ab1cd').textContent = c1 > 0 ? c1 : '';
+    $('ab1btn').classList.toggle('cooling', c1 > 0);
+  }
+  const locked = !m.evolved;
+  if (locked !== abHud.locked) {
+    abHud.locked = locked;
+    $('ab2btn').classList.toggle('locked', locked);
+    $('ab2lock').style.display = locked ? '' : 'none';
+  }
+  if (c2 !== abHud.cd2) {
+    abHud.cd2 = c2;
+    $('ab2cd').textContent = !locked && c2 > 0 ? c2 : '';
+    $('ab2btn').classList.toggle('cooling', !locked && c2 > 0);
   }
 }
 function showToast(text) {
@@ -278,11 +312,17 @@ function renderSanctuary() {
   teamrow.innerHTML = '';
   world.team.forEach((m, i) => {
     const d = document.createElement('button');
-    d.className = 'slot';
+    d.className = 'slot' + (i === world.active ? ' lead' : '');
     d.appendChild(thumb(m.species, 46));
     const lv = document.createElement('span');
     lv.textContent = `Lv${m.level}${m.evolved ? '★' : ''}`;
     d.appendChild(lv);
+    if (i === world.active) {
+      const tag = document.createElement('em');
+      tag.className = 'leadtag';
+      tag.textContent = 'LEAD';
+      d.appendChild(tag);
+    }
     d.addEventListener('pointerup', () => {
       if (pickedReserve >= 0 && world.reserve[pickedReserve]) {
         // swap the resting monster into this team slot
@@ -293,6 +333,12 @@ function renderSanctuary() {
         teamKey = '';
         sfx.hop();
         renderSanctuary(); renderTeam(); renderHearts(); saveGame();
+      } else if (i !== world.active) {
+        // choose your lead — the monster you take into the wild
+        world.active = i;
+        teamKey = '';
+        sfx.hop();
+        renderSanctuary(); renderTeam(); renderHearts(); renderCounts(); saveGame();
       }
     });
     teamrow.appendChild(d);
@@ -331,9 +377,11 @@ function renderSanctuary() {
   if (world.charm) msg.textContent = '🌟 Aurora Charm earned — wipes cost no orbs. Thank you for filling the Sanctuary!';
   else msg.textContent = `Caught ${caughtN}/9 · Evolved ${evoN}/9 — catch and evolve them ALL for the Aurora Charm.`;
   $('charmbtn').style.display = !world.charm && dexComplete(world) ? '' : 'none';
-  $('sanhint').textContent = world.reserve.length && world.team.length >= 4
-    ? (pickedReserve >= 0 ? 'Now tap the team member to swap out.' : 'Tap a resting monster, then a team member to swap.')
-    : '';
+  $('sanhint').textContent = pickedReserve >= 0
+    ? 'Now tap the team member to swap out.'
+    : world.team.length > 1 || world.reserve.length
+      ? 'Tap a team member to make it your LEAD — it fights alone out there. Tap a resting monster first to swap it in.'
+      : '';
 }
 $('charmbtn').addEventListener('pointerup', () => {
   if (claimCharm(world)) {
@@ -426,8 +474,17 @@ function handleEvents() {
         sfx.bounce();
         floatText(ev.x, ev.y, 'Blocked!', { color: '#a9e6ff', size: 16 });
         break;
-      case 'faint_swap': renderHearts(); renderTeam(); break;
-      case 'swap': sfx.hop(); renderHearts(); renderTeam(); break;
+      case 'ability':
+        sfx.dash();
+        burst(ev.x, ev.y, 10, { color: '#fff0a8', speed: 150, grav: 80 });
+        if (!handleEvents._abSeen) handleEvents._abSeen = {};
+        if (!handleEvents._abSeen[ev.key]) { handleEvents._abSeen[ev.key] = 1; showToast(ev.name + '!'); }
+        break;
+      case 'heal':
+        sfx.levelup();
+        floatText(ev.x, ev.y, '+2 ♥', { color: '#7dff8a', size: 18 });
+        renderHearts();
+        break;
       case 'wipe': sfx.wipe(); renderHearts(); renderTeam(); saveGame(); break;
       case 'engage': sfx.engage(); break;
       case 'boss': sfx.bossWarn ? sfx.bossWarn() : sfx.engage(); addTrauma(0.25); break;

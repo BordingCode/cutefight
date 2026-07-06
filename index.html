@@ -6,13 +6,13 @@
 <title>Cute Fight</title>
 <meta name="description" content="A cute monster-catching brawler — fight, daze, and catch wild monsters on your journey to the Summit.">
 <meta name="theme-color" content="#6db9e8">
-<link rel="manifest" href="manifest.json?v=20260706b">
-<link rel="icon" href="assets/icons/icon.svg?v=20260706b" type="image/svg+xml">
-<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260706b">
+<link rel="manifest" href="manifest.json?v=20260706c">
+<link rel="icon" href="assets/icons/icon.svg?v=20260706c" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png?v=20260706c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="css/main.css?v=20260706b">
+<link rel="stylesheet" href="css/main.css?v=20260706c">
 <script>
 // hub-stats tracker v2
 (function(){try{var A="cutefight",K="hubdev",d=localStorage.getItem(K);if(!d){d=(self.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+"."+Math.random().toString(36).slice(2));localStorage.setItem(K,d);}var u="https://hub-stats.mathiasjob.workers.dev/hit",b=JSON.stringify({app:A,d:d});if(navigator.sendBeacon){navigator.sendBeacon(u,b);}else{fetch(u,{method:"POST",body:b,keepalive:true,mode:"no-cors"});}}catch(e){}})();
@@ -42,6 +42,15 @@
 </button>
 <button class="actionbtn" id="catchbtn">
   <svg width="34" height="34" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#fff3df" stroke="#33272e" stroke-width="2.5"/><path d="M3 16 a13 13 0 0 1 26 0 z" fill="#f2b134" stroke="#33272e" stroke-width="2.5"/><circle cx="12" cy="9" r="3" fill="#fff" opacity="0.8"/></svg>
+</button>
+<button class="actionbtn abbtn" id="ab1btn">
+  <svg width="24" height="24" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#f5d34a" stroke="#33272e" stroke-width="1.6"/></svg>
+  <b class="cdnum" id="ab1cd"></b>
+</button>
+<button class="actionbtn abbtn" id="ab2btn">
+  <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z" fill="#a9e6ff" stroke="#33272e" stroke-width="1.6"/></svg>
+  <b class="cdnum" id="ab2cd"></b>
+  <span class="ablock" id="ab2lock">🔒</span>
 </button>
 
 <div id="teamstrip"></div>
@@ -113,6 +122,6 @@
   <canvas id="mapcanvas"></canvas>
 </div>
 
-<script type="module" src="js/main.js?v=20260706b"></script>
+<script type="module" src="js/main.js?v=20260706c"></script>
 </body>
 </html>

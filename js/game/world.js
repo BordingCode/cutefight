@@ -38,6 +38,20 @@ export const PLAYABLE = {
 // dex/sanctuary display order — "catch & evolve them all" covers these nine
 export const DEX_ORDER = ['cinder', 'sproutle', 'dewdrip', 'voltling', 'frostnip', 'gustling', 'glimmoth', 'mycelisk', 'brinemaw'];
 
+// ---- cooldown abilities: a1 from Lv 1, a2 unlocks when the monster evolves ----
+// (the signature move on the bond gauge is separate — see PLAYABLE.sig)
+export const ABILITIES = {
+  cinder:   { a1: { key: 'flamespit',  name: 'Flame Spit',      cd: 6 },  a2: { key: 'embers',     name: 'Warding Embers',  cd: 11 } },
+  sproutle: { a1: { key: 'seedsnap',   name: 'Seed Snap',       cd: 6 },  a2: { key: 'vine',       name: 'Rooting Vine',    cd: 10 } },
+  dewdrip:  { a1: { key: 'tidejet',    name: 'Tide Jet',        cd: 6 },  a2: { key: 'mistveil',   name: 'Mist Veil',       cd: 12 } },
+  voltling: { a1: { key: 'zap',        name: 'Static Zap',      cd: 5 },  a2: { key: 'overcharge', name: 'Overcharge',      cd: 12 } },
+  frostnip: { a1: { key: 'coldsnap',   name: 'Cold Snap',       cd: 7 },  a2: { key: 'hailstone',  name: 'Hailstone',       cd: 10 } },
+  gustling: { a1: { key: 'tailwind',   name: 'Tailwind',        cd: 7 },  a2: { key: 'slipstream', name: 'Slipstream Shot', cd: 9 } },
+  glimmoth: { a1: { key: 'flash',      name: 'Dazzle Flash',    cd: 8 },  a2: { key: 'glimmer',    name: 'Glimmer Veil',    cd: 12 } },
+  mycelisk: { a1: { key: 'bash',       name: 'Shell Bash',      cd: 6 },  a2: { key: 'regrowth',   name: 'Regrowth',        cd: 14 } },
+  brinemaw: { a1: { key: 'bite',       name: 'Snap Bite',       cd: 6 },  a2: { key: 'brinearmor', name: 'Brine Armor',     cd: 12 } },
+};
+
 // ---- wild side of each species: how it fights when it's the FOE ----
 // shoot = its attack is a dodgeable projectile; push = the shot shoves the player.
 // aerial = hovers (melee answers with air juggles); ambush = sits dead still, short
@@ -60,7 +74,7 @@ export const xpNext = (level) => 30 + 25 * (level - 1);
 export function mkMember(species, level = 1) {
   const P = PLAYABLE[species];
   const maxHp = P.baseHp + Math.floor(level / 2);
-  return { species, level, xp: 0, hp: maxHp, maxHp, gauge: 0, evolved: false, fainted: false };
+  return { species, level, xp: 0, hp: maxHp, maxHp, gauge: 0, evolved: false, fainted: false, cd1: 0, cd2: 0 };
 }
 
 export function createWorld() {
@@ -77,9 +91,10 @@ export function createWorld() {
     charm: false,              // Aurora Charm (dex-completion reward)
     team: [],                  // filled by initTeam (starter pick / save load)
     reserve: [],               // caught monsters resting at the Sanctuary
-    active: 0,
-    swapCd: 0,
-    swapReq: -1,               // main sets this; sim consumes it
+    active: 0,                 // your LEAD — only changeable in the village Sanctuary
+    hasteT: 0,                 // Overcharge: attack-speed burst
+    swiftT: 0,                 // Tailwind / Mist Veil: move-speed burst
+    empower: 0,                // Glimmer Veil: next shots hit much harder
     pickups: [],
     hazards: [],               // {type:'thorn'|'frost'|'fire'|'spore'|'lure', x, y, r, t, slow?, dot?}
     pshots: [], eshots: [],    // player / enemy projectiles
@@ -517,19 +532,35 @@ function tryHit(w, f, kind) {
   }
 }
 
-function fireShot(w, f) {
+// spawn a player projectile toward (tx,ty); opts: speed/dmgMul/slow/pierce/kb/spread
+function mkShot(w, tx, ty, opts = {}) {
   const p = w.player;
   const P = activeP(w);
-  if (!f) return;
-  const d = pdist(p.x, p.y, f.x, f.y) || 1;
+  const speed = opts.speed || P.shotSpeed || 470;
+  const ang = Math.atan2(ty - 34 - (p.y - 34), tx - p.x) + (opts.spread || 0);
+  let dmgMul = opts.dmgMul || 1;
+  if (w.empower > 0) { dmgMul *= 2.5; w.empower--; }
   w.pshots.push({
     x: p.x, y: p.y - 34,
-    vx: ((f.x - p.x) / d) * P.shotSpeed,
-    vy: ((f.y - 34 - (p.y - 34)) / d) * P.shotSpeed,
-    element: P.element, slow: !!P.slow, life: 2.2,
+    vx: Math.cos(ang) * speed,
+    vy: Math.sin(ang) * speed,
+    element: opts.element || P.element, slow: opts.slow ?? !!P.slow,
+    dmgMul, pierce: !!opts.pierce, kb: !!opts.kb, hit: opts.pierce ? [] : null,
+    life: 2.2,
   });
-  p.facing = sign(f.x - p.x) || p.facing;
+  p.facing = sign(tx - p.x) || p.facing;
+}
+
+function fireShot(w, f) {
+  if (!f) return;
+  mkShot(w, f.x, f.y);
   w.events.push({ t: 'shoot' });
+}
+
+// aim point for abilities: the current target, else straight ahead
+function aimAt(w, dist = 220) {
+  const p = w.player;
+  return w.target ? [w.target.x, w.target.y] : [p.x + p.facing * dist, p.y];
 }
 
 // ---------- signature moves ----------
@@ -594,7 +625,7 @@ function useSig(w) {
   } else if (P.sig === 'undertow') {
     // drag the pack toward you and root them — sets up cleaves and hazards
     const R = 260;
-    for (const o of w.foes) {
+    for (const o of [...w.foes]) {
       const d = pdist(p.x, p.y, o.x, o.y);
       if (d > R || o.boss) { if (d <= R && o.boss) { o.rootT = Math.max(o.rootT, 0.5); } continue; }
       aggroPack(w, o);
@@ -610,6 +641,76 @@ function useSig(w) {
   }
 }
 
+// ---------- cooldown abilities (a1 always, a2 once evolved) ----------
+function useAbility(w, slot) {
+  const p = w.player;
+  const m = activeMember(w);
+  const AB = ABILITIES[m.species];
+  if (!AB) return;
+  const ab = slot === 1 ? AB.a1 : AB.a2;
+  if (slot === 2 && !m.evolved) return;
+  if ((slot === 1 ? m.cd1 : m.cd2) > 0) return;
+  const f = w.target;
+  const done = () => {
+    if (slot === 1) m.cd1 = ab.cd; else m.cd2 = ab.cd;
+    w.events.push({ t: 'ability', key: ab.key, name: ab.name, x: p.x, y: p.y - 44, element: activeP(w).element });
+  };
+
+  switch (ab.key) {
+    case 'flamespit': { const [tx, ty] = aimAt(w); mkShot(w, tx, ty, { speed: 520, dmgMul: 1.3, element: 'ember', slow: false }); done(); break; }
+    case 'embers': w.hazards.push({ type: 'fire', x: p.x, y: p.y, r: 92, t: 4 }); done(); break;
+    case 'seedsnap': { const [tx, ty] = aimAt(w); for (const s of [-0.28, 0, 0.28]) mkShot(w, tx, ty, { spread: s, dmgMul: 0.9 }); done(); break; }
+    case 'vine': if (f) { f.rootT = Math.max(f.rootT, 1.6); hitFoe(w, f, 'zone', 4); done(); } break;
+    case 'tidejet': { const [tx, ty] = aimAt(w); mkShot(w, tx, ty, { speed: 640, dmgMul: 2.2, kb: true, slow: false }); done(); break; }
+    case 'mistveil': p.iframes = Math.max(p.iframes, 1.2); w.swiftT = Math.max(w.swiftT, 2.5); done(); break;
+    case 'zap': {
+      if (!f) break;
+      hitFoe(w, f, 'zone', 8);
+      let other = null, bd = 220;
+      for (const o of w.foes) {
+        if (o === f) continue;
+        const d = pdist(o.x, o.y, f.x, f.y);
+        if (d < bd) { bd = d; other = o; }
+      }
+      if (other) hitFoe(w, other, 'zone', 8);
+      done(); break;
+    }
+    case 'overcharge': w.hasteT = 4; done(); break;
+    case 'coldsnap': {
+      for (const o of [...w.foes]) {
+        if (pdist(p.x, p.y, o.x, o.y) > 150) continue;
+        o.slowT = Math.max(o.slowT, 2.5);
+        hitFoe(w, o, 'zone', 3);
+      }
+      done(); break;
+    }
+    case 'hailstone': { const [tx, ty] = aimAt(w); mkShot(w, tx, ty, { speed: 260, dmgMul: 2.6, slow: true, element: 'frost' }); done(); break; }
+    case 'tailwind': w.swiftT = Math.max(w.swiftT, 2.5); p.iframes = Math.max(p.iframes, 0.35); p.autoT = 0; done(); break;
+    case 'slipstream': { const [tx, ty] = aimAt(w); mkShot(w, tx, ty, { speed: 640, dmgMul: 1.4, pierce: true, element: 'gust', slow: false }); done(); break; }
+    case 'flash': {
+      for (const o of [...w.foes]) {
+        if (pdist(p.x, p.y, o.x, o.y) > 175) continue;
+        if (o.state === 'tell' || o.state === 'lunge') { o.state = 'recover'; o.timer = 1.2; }
+        hitFoe(w, o, 'zone', 4);
+      }
+      done(); break;
+    }
+    case 'glimmer': w.empower = 1; p.iframes = Math.max(p.iframes, 1.0); done(); break;
+    case 'bash': if (f) { tryHit(w, f, 'heavy'); done(); } break;
+    case 'regrowth': if (m.hp < m.maxHp) { m.hp = Math.min(m.maxHp, m.hp + 2); w.events.push({ t: 'heal', x: p.x, y: p.y - 60 }); done(); } break;
+    case 'bite': {
+      if (f) {
+        const len = pdist(p.x, p.y, f.x, f.y) || 1;
+        p.dashDX = (f.x - p.x) / len; p.dashDY = (f.y - p.y) / len;
+      } else { p.dashDX = p.facing; p.dashDY = 0; }
+      p.dashT = 0.12; p.dashHit = false;
+      p.state = 'atk'; p.atkKind = 'dash'; p.atkT = 0.12;
+      done(); break;
+    }
+    case 'brinearmor': w.shield = Math.max(w.shield, 1); w.shieldT = 5; done(); break;
+  }
+}
+
 // ---------- player ----------
 function stepPlayer(w, dt, input) {
   const p = w.player;
@@ -618,23 +719,16 @@ function stepPlayer(w, dt, input) {
   const z = zoneOf(w);
   p.animT += dt;
   p.iframes = Math.max(0, p.iframes - dt);
-  w.swapCd = Math.max(0, w.swapCd - dt);
+  w.hasteT = Math.max(0, w.hasteT - dt);
+  w.swiftT = Math.max(0, w.swiftT - dt);
+  for (const tm of w.team) { tm.cd1 = Math.max(0, (tm.cd1 || 0) - dt); tm.cd2 = Math.max(0, (tm.cd2 || 0) - dt); }
   if (w.shieldT > 0) { w.shieldT -= dt; if (w.shieldT <= 0) w.shield = 0; }
 
   w.target = nearestFoe(w);
 
-  // swap request from the team strip
-  if (w.swapReq >= 0) {
-    const i = w.swapReq;
-    w.swapReq = -1;
-    if (i !== w.active && w.team[i] && !w.team[i].fainted && w.swapCd <= 0) {
-      w.active = i;
-      w.swapCd = w.foes.some((f) => f.aggro) ? 4 : 0.4;
-      p.iframes = Math.max(p.iframes, 0.6);
-      p.chain = 0; p.autoT = 0.4;
-      w.events.push({ t: 'swap', species: w.team[i].species });
-    }
-  }
+  // cooldown abilities
+  if (input.ability1) useAbility(w, 1);
+  if (input.ability2) useAbility(w, 2);
 
   // evolved blink: the chained second strike
   if (p.blinkT > 0) {
@@ -656,7 +750,7 @@ function stepPlayer(w, dt, input) {
     p.x += p.dashDX * 1150 * dt;
     p.y += p.dashDY * 1150 * dt;
     clampToZone(w, p);
-    if (m && m.evolved && Math.random() < 0.5) w.hazards.push({ type: 'fire', x: p.x, y: p.y, r: 46, t: 2.5 });
+    if (m && m.species === 'cinder' && m.evolved && Math.random() < 0.5) w.hazards.push({ type: 'fire', x: p.x, y: p.y, r: 46, t: 2.5 });
     if (!p.dashHit && w.target && pdist(p.x, p.y, w.target.x, w.target.y) < 80 + (w.target.boss ? 40 : 0)) {
       p.dashHit = true;
       hitFoe(w, w.target, 'dash');
@@ -681,10 +775,11 @@ function stepPlayer(w, dt, input) {
   }
 
   // one-thumb grammar
+  const spd = MOVE_SPD * (w.swiftT > 0 ? 1.45 : 1);
   p.vx = 0; p.vy = 0;
   if (input.dragging) {
-    p.vx = input.moveX * MOVE_SPD;
-    p.vy = input.moveY * MOVE_SPD;
+    p.vx = input.moveX * spd;
+    p.vy = input.moveY * spd;
     if (input.moveX !== 0) p.facing = sign(input.moveX);
     p.autoT = Math.max(p.autoT, 0.22);
   } else if (w.target) {
@@ -700,7 +795,7 @@ function stepPlayer(w, dt, input) {
       else if (d > ideal + 90) { p.vx = (dx / d) * 165; p.vy = (dy / d) * 165; }
       if (p.autoT <= 0 && p.state !== 'atk') {
         p.state = 'atk'; p.atkKind = 'shot'; p.atkT = 0.16;
-        p.autoT = P.cadence;
+        p.autoT = P.cadence * (w.hasteT > 0 ? 0.55 : 1);
         fireShot(w, f);
       }
     } else {
@@ -714,7 +809,7 @@ function stepPlayer(w, dt, input) {
         else {
           p.chain = (p.chain + 1) % 4;
           kind = ['light', 'light', 'combo', 'launcher'][p.chain];
-          p.autoT = P.cadence;
+          p.autoT = P.cadence * (w.hasteT > 0 ? 0.55 : 1);
         }
         p.state = 'atk'; p.atkKind = kind; p.atkT = 0.18;
         w.events.push({ t: 'swing', big: kind === 'combo' || kind === 'launcher' });
@@ -811,24 +906,15 @@ function hurtPlayer(w, fromFoe, dmg = 1) {
   p.iframes = 1.1;
   w.events.push({ t: 'player_hurt', x: p.x, y: p.y - 30 });
   if (m.hp <= 0) {
-    m.hp = 0; m.fainted = true;
-    const next = w.team.findIndex((tm) => !tm.fainted);
-    if (next >= 0) {
-      w.active = next;
-      p.iframes = 1.4;
-      w.events.push({ t: 'faint_swap', species: w.team[next].species });
-      toast(w, `${SPECIES[m.species]?.name || m.species} fainted! Go, ${SPECIES[w.team[next].species]?.name || w.team[next].species}!`, 2.6);
-    } else {
-      // full wipe: wake at the last campfire, team at half strength, drop some orbs
-      const lost = w.charm ? 0 : Math.floor(w.orbs / 3);
-      w.orbs -= lost;
-      for (const tm of w.team) { tm.fainted = false; tm.hp = Math.max(1, Math.ceil(tm.maxHp / 2)); }
-      w.active = 0;
-      w.events.push({ t: 'wipe' });
-      toast(w, lost > 0 ? `You blacked out… woke at the campfire (-${lost} orbs)` : 'You blacked out… woke at the campfire', 3.2);
-      w.transitionT = 0.7;
-      w._travel = { to: w.respawn.zone, at: { x: w.respawn.x, y: w.respawn.y } };
-    }
+    // your LEAD falls — blackout. Teammates don't step in; choose your lead wisely.
+    m.hp = 0;
+    const lost = w.charm ? 0 : Math.floor(w.orbs / 3);
+    w.orbs -= lost;
+    for (const tm of w.team) { tm.fainted = false; tm.hp = Math.max(1, Math.ceil(tm.maxHp / 2)); }
+    w.events.push({ t: 'wipe' });
+    toast(w, lost > 0 ? `${SPECIES[m.species]?.name || m.species} fell! You blacked out… (-${lost} orbs)` : `${SPECIES[m.species]?.name || m.species} fell! You blacked out…`, 3.2);
+    w.transitionT = 0.7;
+    w._travel = { to: w.respawn.zone, at: { x: w.respawn.x, y: w.respawn.y } };
   }
   return true;
 }
@@ -1048,10 +1134,17 @@ function stepShots(w, dt) {
     s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
     let dead = s.life <= 0 || s.x < 0 || s.x > z.w || s.y < 0 || s.y > z.h;
     if (!dead) {
-      for (const f of w.foes) {
+      for (const f of [...w.foes]) {
+        if (s.hit && s.hit.includes(f)) continue; // piercing shots hit each foe once
         if (pdist(s.x, s.y, f.x, f.y - (f.alt || 0) - 30) < 40 + (f.boss ? 40 : 0)) {
           if (s.slow) f.slowT = Math.max(f.slowT, 2.4);
-          hitFoe(w, f, 'shot');
+          if (s.kb && !f.boss) {
+            const sp = Math.hypot(s.vx, s.vy) || 1;
+            f.vx = (s.vx / sp) * 320; f.vy = (s.vy / sp) * 200;
+            f.state = 'hurt'; f.timer = 0.25;
+          }
+          hitFoe(w, f, 'shot', s.dmgMul || 1);
+          if (s.pierce) { s.hit.push(f); continue; }
           dead = true;
           break;
         }

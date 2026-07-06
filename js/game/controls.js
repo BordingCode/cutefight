@@ -35,7 +35,7 @@ export class Controls {
     padZone.addEventListener('pointerup', padEnd);
     padZone.addEventListener('pointercancel', padEnd);
 
-    // ---- ability button (Ember Dash, needs a full bond gauge) ----
+    // ---- signature button (needs a full bond gauge) ----
     const abilityBtn = document.getElementById('abilitybtn');
     if (abilityBtn) {
       abilityBtn.addEventListener('pointerdown', (e) => {
@@ -43,6 +43,13 @@ export class Controls {
         e.preventDefault();
       });
     }
+
+    // ---- cooldown ability buttons ----
+    this._ab1 = false; this._ab2 = false;
+    const ab1 = document.getElementById('ab1btn');
+    const ab2 = document.getElementById('ab2btn');
+    if (ab1) ab1.addEventListener('pointerdown', (e) => { this._ab1 = true; e.preventDefault(); });
+    if (ab2) ab2.addEventListener('pointerdown', (e) => { this._ab2 = true; e.preventDefault(); });
 
     // ---- catch button (context) ----
     catchBtn.addEventListener('pointerdown', (e) => {
@@ -61,6 +68,8 @@ export class Controls {
       if (e.repeat) return;
       if (e.code === 'Space') { this._tap = true; this._ringTap = true; }
       if (e.code === 'KeyF') this._ability = true;
+      if (e.code === 'KeyQ') this._ab1 = true;
+      if (e.code === 'KeyR') this._ab2 = true;
       if (e.code === 'KeyE') { this._catch = true; this._ringTap = true; }
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
@@ -90,10 +99,12 @@ export class Controls {
       dragging,
       tapped: this._tap,
       ability: this._ability,
+      ability1: this._ab1,
+      ability2: this._ab2,
       catchPress: this._catch,
       ringTap: this._ringTap,
     };
-    this._tap = this._ability = this._catch = this._ringTap = false;
+    this._tap = this._ability = this._catch = this._ringTap = this._ab1 = this._ab2 = false;
     return out;
   }
 }
