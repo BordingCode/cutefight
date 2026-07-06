@@ -158,7 +158,8 @@ function drawCampfire(ctx, x, y, t, lit) {
   }
 }
 
-function drawProp(ctx, S, kind, x, y) {
+function drawProp(ctx, S, kind, x, y, big) {
+  if (kind === 'water') return; // invisible pond collider
   const img = S.props && S.props[kind];
   ctx.fillStyle = 'rgba(40,60,35,0.25)';
   if (!img) {
@@ -167,9 +168,97 @@ function drawProp(ctx, S, kind, x, y) {
     ctx.beginPath(); ctx.arc(x, y - 30, 30, 0, TAU); ctx.fill();
     return;
   }
-  const w4 = img.width * SCALE, h4 = img.height * SCALE;
-  ctx.beginPath(); ctx.ellipse(x, y + 5, w4 * 0.32, 9, 0, 0, TAU); ctx.fill();
+  const sc = big ? SCALE * 1.8 : SCALE;
+  const w4 = img.width * sc, h4 = img.height * sc;
+  if (img.height > 12) { // tiny ground decals cast no shadow
+    ctx.beginPath(); ctx.ellipse(x, y + 5, w4 * 0.32, big ? 13 : 9, 0, 0, TAU); ctx.fill();
+  }
   ctx.drawImage(img, Math.round(x - w4 / 2), Math.round(y - h4 + 12), w4, h4);
+}
+
+// worn paths: guide the eye (and the thumb) between the places that matter
+const PATH_COLOR = ['#e8cf9d', '#c9b184', '#dcE8f2'];
+function drawPaths(ctx, z) {
+  if (!z.paths) return;
+  const col = z.pal === 2 ? '#d8e7f0' : PATH_COLOR[z.pal] || PATH_COLOR[0];
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const path of z.paths) {
+    for (const [w2, c, a] of [[path.w + 10, '#33272e', 0.12], [path.w, col, 0.85]]) {
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w2;
+      ctx.beginPath();
+      ctx.moveTo(path.pts[0][0], path.pts[0][1]);
+      for (let i = 1; i < path.pts.length; i++) ctx.lineTo(path.pts[i][0], path.pts[i][1]);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ponds & frozen lakes
+function drawWaters(ctx, z, t) {
+  if (!z.waters) return;
+  for (const w of z.waters) {
+    if (w.frozen) {
+      ctx.fillStyle = '#33272e';
+      ctx.globalAlpha = 0.18;
+      ctx.beginPath(); ctx.ellipse(w.x, w.y + 4, w.rx + 6, w.ry + 5, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#cfe6f2';
+      ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx, w.ry, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#e9f6fd';
+      ctx.beginPath(); ctx.ellipse(w.x - w.rx * 0.2, w.y - w.ry * 0.15, w.rx * 0.55, w.ry * 0.5, 0, 0, TAU); ctx.fill();
+      // the fishing hole
+      ctx.fillStyle = '#2f6d9e';
+      ctx.beginPath(); ctx.ellipse(w.x + w.rx * 0.25, w.y + w.ry * 0.1, 26, 14, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#a9c8ef';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#2f6d9e';
+      ctx.beginPath(); ctx.ellipse(w.x, w.y + 3, w.rx + 6, w.ry + 5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#4fa3d8';
+      ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx, w.ry, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#a5dff2';
+      const sh = Math.sin(t * 1.6) * 6;
+      ctx.beginPath(); ctx.ellipse(w.x - w.rx * 0.25 + sh, w.y - w.ry * 0.2, w.rx * 0.4, w.ry * 0.3, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([10, 14]);
+      ctx.lineDashOffset = -t * 14;
+      ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx * 0.72, w.ry * 0.68, 0, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+// ambient weather: petals / falling leaves / snow, per biome — cheap screen-space drift
+const AMBIENT = { colors: [['#ffd9e8', '#fff0a8'], ['#8fd06a', '#c9ee9a'], ['#ffffff', '#e2f1ff']] };
+function drawAmbient(ctx, view, w, pal) {
+  const [c1, c2] = AMBIENT.colors[pal] || AMBIENT.colors[0];
+  const H = view.bgY1 - view.bgY0;
+  const W = view.bgX1 - view.bgX0;
+  for (let i = 0; i < 20; i++) {
+    const speed = 26 + (i * 37) % 30;
+    const sway = pal === 1 ? 34 : 16;
+    const x = view.bgX0 + (((i * 173.3) + w.t * (10 + (i % 5) * 4) - w.cam.x * 0.25) % W + W) % W;
+    const y = view.bgY0 + (((i * 259.7) + w.t * speed - w.cam.y * 0.25) % H + H) % H;
+    const wob = Math.sin(w.t * 1.8 + i * 1.7) * sway;
+    ctx.globalAlpha = 0.5 + (i % 3) * 0.15;
+    ctx.fillStyle = i % 2 ? c1 : c2;
+    if (pal === 2) {
+      ctx.fillRect(x + wob, y, 3.5, 3.5);
+    } else {
+      ctx.save();
+      ctx.translate(x + wob, y);
+      ctx.rotate(w.t * 1.3 + i);
+      ctx.fillRect(-3, -1.5, 6, 3);
+      ctx.restore();
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 export function draw(view, w, S) {
@@ -233,6 +322,9 @@ export function draw(view, w, S) {
   ctx.fillStyle = BG.groundPat;
   ctx.fillRect(Math.max(0, vx0), Math.max(0, vy0), Math.min(z.w, vx1) - Math.max(0, vx0), Math.min(z.h, vy1) - Math.max(0, vy0));
 
+  drawPaths(ctx, z);
+  drawWaters(ctx, z, w.t);
+
   const seen = (x, y, m = 90) => x > vx0 - m && x < vx1 + m && y > vy0 - m - 60 && y < vy1 + m;
 
   // zone exits: glowing waymarks on the ground
@@ -256,6 +348,7 @@ export function draw(view, w, S) {
 
   // depth-sorted entities & props
   const items = [];
+  if (z.decor) for (const o of z.decor) if (seen(o.x, o.y)) items.push({ y: o.y, kind: 'prop', o });
   for (const o of z.obstacles) if (seen(o.x, o.y)) items.push({ y: o.y, kind: 'prop', o });
   for (const it of z.interactables) if (seen(it.x, it.y)) items.push({ y: it.y, kind: it.kind === 'campfire' ? 'campfire' : 'building', o: it });
   for (const g of z.gates) {
@@ -268,7 +361,7 @@ export function draw(view, w, S) {
 
   for (const it of items) {
     if (it.kind === 'prop') {
-      drawProp(ctx, S, it.o.kind, it.o.x, it.o.y);
+      drawProp(ctx, S, it.o.kind, it.o.x, it.o.y, it.o.big);
       continue;
     }
     if (it.kind === 'building') {
@@ -502,6 +595,8 @@ export function draw(view, w, S) {
 
   drawFX(ctx);
   ctx.restore(); // end camera
+
+  drawAmbient(ctx, view, w, z.pal);
 
   // ================= screen-space UI =================
   ctx.font = '800 14px sans-serif';

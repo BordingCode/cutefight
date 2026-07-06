@@ -828,24 +828,29 @@ function stepPlayer(w, dt, input) {
   clampToZone(w, p);
   resolveCircles(w, p);
 
-  // zone exits
+  // zone exits — closed gates shove you back at once; open ways need you to
+  // LINGER a beat, so a wild scuffle can't fling you across the border
+  let inExit = null;
   for (const ex of z.exits) {
-    if (pdist(p.x, p.y, ex.x, ex.y) < ex.r) {
-      if (ex.gate && !w.gatesOpen.includes(ex.gate)) {
-        // shove back from the blocked way
-        let ux = p.x - ex.x, uy = p.y - ex.y;
-        const len = Math.hypot(ux, uy) || 1;
-        p.x = ex.x + (ux / len) * (ex.r + 8);
-        p.y = ex.y + (uy / len) * (ex.r + 8);
-        clampToZone(w, p);
-        if (w._blockMsgT <= 0) {
-          w._blockMsgT = 2.8;
-          toast(w, w.gateReady.includes(ex.gate) ? 'The guardian bars the way!' : 'The way is blocked… the Warden may know more.', 2.6);
-        }
-      } else {
-        requestTravel(w, ex.to, ex.at);
-      }
-      break;
+    if (pdist(p.x, p.y, ex.x, ex.y) < ex.r) { inExit = ex; break; }
+  }
+  if (inExit && inExit.gate && !w.gatesOpen.includes(inExit.gate)) {
+    const ex = inExit;
+    let ux = p.x - ex.x, uy = p.y - ex.y;
+    const len = Math.hypot(ux, uy) || 1;
+    p.x = ex.x + (ux / len) * (ex.r + 8);
+    p.y = ex.y + (uy / len) * (ex.r + 8);
+    clampToZone(w, p);
+    if (w._blockMsgT <= 0) {
+      w._blockMsgT = 2.8;
+      toast(w, w.gateReady.includes(ex.gate) ? 'The guardian bars the way!' : 'The way is blocked… the Warden may know more.', 2.6);
+    }
+    w._exitT = 0;
+  } else {
+    w._exitT = inExit ? (w._exitT || 0) + dt : 0;
+    if (inExit && w._exitT > 0.35) {
+      w._exitT = 0;
+      requestTravel(w, inExit.to, inExit.at);
     }
   }
 
